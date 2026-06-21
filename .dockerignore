@@ -1,0 +1,21 @@
+# Keep the HF Space image small + secret-free.
+.git
+.venv-hud
+__pycache__
+**/__pycache__
+*.pyc
+.env
+.env.*
+.trained_model*.txt
+data
+examples
+wander-hud
+wander_lake
+rft_eval
+docs
+tests
+scripts
+*.tar.gz
+.ep_tmp
+.pytest_cache
+*.egg-info

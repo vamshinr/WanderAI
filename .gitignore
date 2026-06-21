@@ -1,3 +1,8 @@
+# eval-protocol RFT build artifacts (re-created on every `ep create rft`; must not
+# be re-tarred into the next evaluator upload)
+*.tar.gz
+.ep_tmp/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -150,12 +155,17 @@ activemq-data/
 # Environments
 .env
 .envrc
+.env.local
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# WanderAI: local scratch / secrets
+thoughts.txt
+secrets/
 
 # Spyder project settings
 .spyderproject
@@ -216,3 +226,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Antim/Gizmo scene cache
+scenes_cache/
+
+# RFT generated data
+data/
+
+# HUD venv (python3.12)
+.venv-hud/
+
+# deployed-model address written by deploy_trained.py
+.trained_model.txt
+.DS_Store

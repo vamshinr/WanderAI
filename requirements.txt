@@ -1,0 +1,9 @@
+# Runtime deps for the Fireworks RFT evaluator build (wander_lake multi-turn env).
+# Fireworks tars the repo, runs `pip install -r requirements.txt`, then launches
+# wander_lake/server.py during rollouts — which imports `wanderai` (needs numpy)
+# and the eval_protocol McpGym harness (needs mcp, pulled by eval-protocol).
+# The wanderai package itself is imported from the extracted tarball via sys.path
+# (see wander_lake/server.py), so it does not need to be pip-installed.
+numpy
+certifi
+eval-protocol
