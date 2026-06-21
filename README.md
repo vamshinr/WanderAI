@@ -9,6 +9,12 @@ app_port: 7860
 pinned: false
 ---
 
+Team members:
+Aditya Gouroju
+Krish Garg
+Rohith K
+Vamshi Nagireddy
+
 # WanderAI
 
 **Scene-agnostic egocentric object-search.** An agent is dropped into a room it has
