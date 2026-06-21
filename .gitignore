@@ -230,3 +230,6 @@ data/
 
 # HUD venv (python3.12)
 .venv-hud/
+
+# deployed-model address written by deploy_trained.py
+.trained_model.txt

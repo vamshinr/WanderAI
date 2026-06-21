@@ -21,12 +21,22 @@ from wanderai.observation import DEFAULT_FOV
 from wanderai.policies import OraclePolicy, RandomPolicy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# The RFT-trained policy. A LoRA addon served on a dedicated deployment must be
-# addressed as "<model>#<deployment>" — the bare model id 404s.
-TRAINED_MODEL = os.environ.get(
-    "WANDER_TRAINED_MODEL",
-    "accounts/vamshinr5899-p0wudhc/models/wander-rft-v1"
-    "#accounts/vamshinr5899-p0wudhc/deployments/ykcmxh3l")
+# The RFT-trained policy. A LoRA addon on a dedicated deployment must be addressed
+# as "<model>#<deployment>" (the bare model id 404s). scripts/deploy_trained.py
+# writes the current address to .trained_model.txt; env var overrides that.
+def _trained_model() -> str:
+    env = os.environ.get("WANDER_TRAINED_MODEL")
+    if env:
+        return env
+    path = os.path.join(HERE, ".trained_model.txt")
+    if os.path.exists(path):
+        with open(path) as fh:
+            return fh.read().strip()
+    return ("accounts/vamshinr5899-p0wudhc/models/wander-rft-v1"
+            "#accounts/vamshinr5899-p0wudhc/deployments/ykcmxh3l")
+
+
+TRAINED_MODEL = _trained_model()
 
 
 def _field_payload(env: SceneSearchEnv):
