@@ -27,6 +27,9 @@
   button:hover { border-color:var(--accent); }
   button.primary { background:var(--accent); color:#06101f; border-color:var(--accent); font-weight:600; }
   button:disabled { opacity:.4; cursor:not-allowed; }
+  .filebtn { background:#21262d; color:var(--fg); border:1px solid var(--line);
+           border-radius:6px; padding:7px 10px; font-size:12px; cursor:pointer; }
+  .filebtn:hover { border-color:var(--accent); }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   input[type=number] { width:84px; background:#0d1117; color:var(--fg);
            border:1px solid var(--line); border-radius:6px; padding:6px; font:inherit; }
@@ -60,6 +63,17 @@
         <button id="randSeed">🎲</button>
         <button id="defScene">Default</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Antim / MJCF scene</h2>
+      <div class="row">
+        <label class="filebtn"><input id="mjcfFile" type="file" accept=".xml" hidden />
+          📁 Load MJCF file</label>
+        <button id="loadGizmo">Load latest Gizmo export</button>
+      </div>
+      <p class="legend" style="margin:8px 0 0;">Import an Antim/Gizmo-exported room
+         (or any MuJoCo MJCF) and search it.</p>
     </div>
 
     <div class="card">
@@ -171,14 +185,15 @@ function setStatus(info, cum, done) {
   else              { st.textContent='searching'; st.className='pill'; }
 }
 
-async function newScene(opts) {
+async function load(endpoint, body) {
   stop();
-  const data = await post('/api/reset', opts);
-  if (data.error) { alert(data.error); return; }
+  const data = await post(endpoint, body);
+  if (data.error) { alert('Scene load failed: ' + data.error); return; }
   scene = data; T = makeTransform(scene.bounds);
   $('reward').textContent='–'; $('cum').textContent='0.000';
   setStatus(scene.info, 0, false); draw();
 }
+const newScene = opts => load('/api/reset', opts);
 
 async function step(action) {
   if (!scene) return null;
@@ -211,6 +226,12 @@ $('randSeed').onclick = () => { $('seed').value = Math.floor(Math.random()*1e6);
 $('runOracle').onclick = () => run('oracle');
 $('runRandom').onclick = () => run('random');
 $('stop').onclick = stop;
+$('mjcfFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  await load('/api/import_mjcf', {xml: await f.text()});
+  e.target.value = '';
+};
+$('loadGizmo').onclick = () => load('/api/import_mjcf', {path: '/tmp/gizmo_auto.zip'});
 document.querySelectorAll('[data-act]').forEach(b =>
   b.onclick = () => { stop(); step(+b.dataset.act); });
 document.addEventListener('keydown', e => {

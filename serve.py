@@ -107,6 +107,25 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({**_scene_payload(env, info), "cumulative": 0.0,
                             "done": False})
 
+            elif self.path == "/api/import_mjcf":
+                from wanderai.antim_import import mjcf_to_scene, mjcf_zip_to_scene
+                body = self._read_json()
+                if body.get("xml"):
+                    scene = mjcf_to_scene(body["xml"])
+                elif body.get("path"):
+                    p = body["path"]
+                    scene = (mjcf_zip_to_scene(p) if p.endswith(".zip")
+                             else mjcf_to_scene(open(p).read()))
+                else:
+                    return self._json({"error": "provide 'xml' or 'path'"}, 400)
+                env = SceneSearchEnv(scene, config=EnvConfig(max_steps=400))
+                _, info = env.reset()
+                st["env"] = env
+                st["cumulative"] = 0.0
+                st["random_policy"] = RandomPolicy()
+                self._json({**_scene_payload(env, info), "cumulative": 0.0,
+                            "done": False, "source": "antim"})
+
             elif self.path == "/api/step":
                 env = st.get("env")
                 if env is None:

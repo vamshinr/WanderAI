@@ -2,7 +2,6 @@ from __future__ import annotations
 import math
 import numpy as np
 from .environment import SceneSearchEnv, Action
-from .geometry import wrap_angle
 from .metrics import EpisodeResult
 
 
@@ -21,23 +20,28 @@ class OraclePolicy:
     ground-truth field the learned policy never sees."""
 
     def act(self, obs, env: SceneSearchEnv) -> Action:
-        p = env.pose
-        best_dir, best_d = None, math.inf
-        for k in range(8):
-            ang = k * math.pi / 4
-            tx = p.x + env.config.step_size * math.cos(ang)
-            ty = p.y + env.config.step_size * math.sin(ang)
+        p, step, turn = env.pose, env.config.step_size, env.config.turn
+
+        def cell_d(angle: float) -> float:
+            """Geodesic at the cell one step along `angle`; inf if blocked."""
+            tx = p.x + step * math.cos(angle)
+            ty = p.y + step * math.sin(angle)
             if env.grid.is_blocked_world(tx, ty):
-                continue
-            d = env.field.query(tx, ty)
-            if d < best_d:
-                best_d, best_dir = d, ang
-        if best_dir is None:
-            return Action.TURN_LEFT
-        err = wrap_angle(best_dir - p.heading)
-        if abs(err) <= env.config.turn / 2:
-            return Action.MOVE_FORWARD
-        return Action.TURN_LEFT if err > 0 else Action.TURN_RIGHT
+                return math.inf
+            return env.field.query(tx, ty)
+
+        # One-step lookahead over the three actions. MOVE_FORWARD is only ever a
+        # candidate when the cell directly ahead (at the actual heading) is free,
+        # so the oracle never drives into a wall it merely turned toward.
+        options = {
+            Action.MOVE_FORWARD: cell_d(p.heading),
+            Action.TURN_LEFT: cell_d(p.heading + turn),
+            Action.TURN_RIGHT: cell_d(p.heading - turn),
+        }
+        best = min(options, key=lambda a: options[a])
+        if math.isinf(options[best]):
+            return Action.TURN_LEFT      # boxed in — rotate to find an opening
+        return best
 
 
 def run_episode(env: SceneSearchEnv, policy) -> EpisodeResult:
