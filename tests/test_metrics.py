@@ -17,6 +17,11 @@ def test_failed_episode_zero():
     assert spl([r]) == 0.0
 
 
+def test_spl_ignores_non_finite_optimal():
+    r = EpisodeResult(success=True, optimal=math.inf, path_length=2.0, steps=10)
+    assert spl([r]) == 0.0
+
+
 def test_summarize():
     rs = [EpisodeResult(True, 4, 4, 16), EpisodeResult(False, 4, 3, 200)]
     out = summarize(rs)

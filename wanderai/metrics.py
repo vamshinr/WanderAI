@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import math
 
 
 @dataclass
@@ -17,9 +18,9 @@ def spl(results: list[EpisodeResult]) -> float:
         return 0.0
     total = 0.0
     for r in results:
-        if r.success and r.optimal > 0:
-            total += r.optimal / max(r.path_length, r.optimal)
-    return total / len(results)
+        if r.success and math.isfinite(r.optimal) and r.optimal > 0:
+            total += float(r.optimal / max(r.path_length, r.optimal))
+    return float(total / len(results))
 
 
 def summarize(results: list[EpisodeResult]) -> dict:
@@ -28,7 +29,7 @@ def summarize(results: list[EpisodeResult]) -> dict:
         return {"success_rate": 0.0, "spl": 0.0, "mean_steps": 0.0}
     succ = [r for r in results if r.success]
     return {
-        "success_rate": len(succ) / n,
+        "success_rate": float(len(succ) / n),
         "spl": spl(results),
-        "mean_steps": sum(r.steps for r in succ) / len(succ) if succ else 0.0,
+        "mean_steps": float(sum(r.steps for r in succ) / len(succ)) if succ else 0.0,
     }

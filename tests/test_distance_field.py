@@ -1,4 +1,6 @@
 import math
+import numpy as np
+import pytest
 from wanderai.scene import Scene
 from wanderai.geometry import AABB, Pose
 from wanderai.occupancy import OccupancyGrid
@@ -41,3 +43,23 @@ def test_unreachable_is_inf():
     g = OccupancyGrid.from_scene(s, 0.2)
     df = DistanceField.from_grid(g, (3.5, 3.5))
     assert math.isinf(df.query(0.5, 0.5))
+
+
+def test_diagonal_neighbors_do_not_cut_blocked_corners():
+    blocked = np.array([
+        [False, True],
+        [True, False],
+    ], dtype=bool)
+    g = OccupancyGrid(blocked, cell_size=1.0, origin=(0.0, 0.0))
+
+    df = DistanceField.from_grid(g, (1.5, 1.5))
+
+    assert math.isinf(df.query(0.5, 0.5))
+
+
+def test_blocked_distance_field_goal_is_rejected():
+    blocked = np.array([[True]], dtype=bool)
+    g = OccupancyGrid(blocked, cell_size=1.0, origin=(0.0, 0.0))
+
+    with pytest.raises(ValueError, match="goal"):
+        DistanceField.from_grid(g, (0.5, 0.5))

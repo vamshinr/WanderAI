@@ -22,12 +22,20 @@ class OraclePolicy:
 
     def act(self, obs, env: SceneSearchEnv) -> Action:
         p = env.pose
+        current_d = env.field.query(p.x, p.y)
+        fx = p.x + env.config.step_size * math.cos(p.heading)
+        fy = p.y + env.config.step_size * math.sin(p.heading)
+        if not _move_blocked(env, p.x, p.y, fx, fy):
+            forward_d = env.field.query(fx, fy)
+            if forward_d < current_d - 1e-9:
+                return Action.MOVE_FORWARD
+
         best_dir, best_d = None, math.inf
         for k in range(8):
             ang = k * math.pi / 4
             tx = p.x + env.config.step_size * math.cos(ang)
             ty = p.y + env.config.step_size * math.sin(ang)
-            if env.grid.is_blocked_world(tx, ty):
+            if _move_blocked(env, p.x, p.y, tx, ty):
                 continue
             d = env.field.query(tx, ty)
             if d < best_d:
@@ -40,11 +48,17 @@ class OraclePolicy:
         return Action.TURN_LEFT if err > 0 else Action.TURN_RIGHT
 
 
+def _move_blocked(env: SceneSearchEnv, x0: float, y0: float, x1: float, y1: float) -> bool:
+    if hasattr(env, "_segment_blocked"):
+        return bool(env._segment_blocked(x0, y0, x1, y1))
+    return bool(env.grid.is_blocked_world(x1, y1))
+
+
 def run_episode(env: SceneSearchEnv, policy) -> EpisodeResult:
     obs, info = env.reset()
     done = False
     while not done:
         action = policy.act(obs, env)
         obs, reward, done, info = env.step(action)
-    return EpisodeResult(success=info["success"], optimal=info["optimal"],
-                         path_length=info["path_length"], steps=info["steps"])
+    return EpisodeResult(success=bool(info["success"]), optimal=float(info["optimal"]),
+                         path_length=float(info["path_length"]), steps=int(info["steps"]))
