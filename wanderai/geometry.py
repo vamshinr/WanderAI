@@ -34,6 +34,30 @@ def wrap_angle(a: float) -> float:
     return a
 
 
+def ray_aabb(x: float, y: float, dx: float, dy: float, box: AABB):
+    """Slab intersection of the ray (origin (x,y), direction (dx,dy)) with an AABB.
+    Returns (tmin, tmax) parametric distances along the ray, or None if the ray's
+    line misses the box. tmin<0 means the origin is inside/past the near slab
+    (use tmax as the exit distance); tmin>0 is the entry distance from outside."""
+    INF = float("inf")
+
+    def _axis(o, d, lo, hi):
+        if abs(d) < 1e-12:
+            return (-INF, INF) if lo <= o <= hi else None
+        t1, t2 = (lo - o) / d, (hi - o) / d
+        return (t1, t2) if t1 <= t2 else (t2, t1)
+
+    ax = _axis(x, dx, box.min_x, box.max_x)
+    ay = _axis(y, dy, box.min_y, box.max_y)
+    if ax is None or ay is None:
+        return None
+    tmin = max(ax[0], ay[0])
+    tmax = min(ax[1], ay[1])
+    if tmin > tmax or tmax < 0:
+        return None
+    return (tmin, tmax)
+
+
 def segment_intersects_aabb(x0, y0, x1, y1, box: AABB) -> bool:
     """Liang-Barsky slab clipping; True if the segment touches the box."""
     dx, dy = x1 - x0, y1 - y0
