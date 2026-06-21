@@ -27,7 +27,7 @@ class DistanceField:
         dist = np.full(grid.blocked.shape, np.inf)
         sr, sc = grid.world_to_cell(*ball_xy)
         if not grid.in_bounds(sr, sc) or grid.blocked[sr, sc]:
-            sr, sc = _nearest_free(grid, sr, sc)
+            raise ValueError("distance field goal must be in bounds and unblocked")
         cs = grid.cell_size
         dist[sr, sc] = 0.0
         pq = [(0.0, sr, sc)]
@@ -37,7 +37,7 @@ class DistanceField:
                 continue
             for dr, dc, w in _NEIGHBORS:
                 nr, nc = r + dr, c + dc
-                if not grid.in_bounds(nr, nc) or grid.blocked[nr, nc]:
+                if not _can_traverse(grid, r, c, dr, dc):
                     continue
                 nd = d + w * cs
                 if nd < dist[nr, nc]:
@@ -49,6 +49,8 @@ class DistanceField:
         """Bilinear interpolation of the distance field at a continuous point,
         averaging only over neighbors with finite (reachable) distance."""
         g = self.grid
+        if g.is_blocked_world(x, y):
+            return math.inf
         fx = (x - g.origin[0]) / g.cell_size - 0.5
         fy = (y - g.origin[1]) / g.cell_size - 0.5
         c0, r0 = int(math.floor(fx)), int(math.floor(fy))
@@ -68,12 +70,14 @@ class DistanceField:
         return math.isfinite(self.query(x, y))
 
 
-def _nearest_free(grid: OccupancyGrid, r: int, c: int) -> tuple[int, int]:
-    best, bestd = (r, c), math.inf
-    for rr in range(grid.nrows):
-        for cc in range(grid.ncols):
-            if not grid.blocked[rr, cc]:
-                d = (rr - r) ** 2 + (cc - c) ** 2
-                if d < bestd:
-                    bestd, best = d, (rr, cc)
-    return best
+def _is_free_cell(grid: OccupancyGrid, r: int, c: int) -> bool:
+    return grid.in_bounds(r, c) and not grid.blocked[r, c]
+
+
+def _can_traverse(grid: OccupancyGrid, r: int, c: int, dr: int, dc: int) -> bool:
+    nr, nc = r + dr, c + dc
+    if not _is_free_cell(grid, nr, nc):
+        return False
+    if dr != 0 and dc != 0:
+        return _is_free_cell(grid, r + dr, c) and _is_free_cell(grid, r, c + dc)
+    return True

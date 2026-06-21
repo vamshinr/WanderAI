@@ -4,7 +4,7 @@ from enum import IntEnum
 import math
 import numpy as np
 from .scene import Scene
-from .geometry import Pose, wrap_angle
+from .geometry import Pose, segment_intersects_aabb, wrap_angle
 from .occupancy import OccupancyGrid
 from .distance_field import DistanceField
 from .renderer import Renderer, StubRenderer
@@ -53,27 +53,50 @@ class SceneSearchEnv:
         self.path_length = 0.0
         self.optimal = math.inf
         self._prev_d = math.inf
+        self._done = False
 
     def reset(self):
-        self.grid = OccupancyGrid.from_scene(self.scene, self.config.cell_size)
-        self.field = DistanceField.from_grid(self.grid, self.scene.ball)
-        self.pose = self.scene.agent_start
+        grid = OccupancyGrid.from_scene(self.scene, self.config.cell_size)
+        start = self.scene.agent_start
+        if grid.is_blocked_world(start.x, start.y):
+            raise ValueError("agent start is blocked or out of bounds")
+        if grid.is_blocked_world(*self.scene.ball):
+            raise ValueError("goal is blocked or out of bounds")
+
+        field = DistanceField.from_grid(grid, self.scene.ball)
+        optimal = field.query(start.x, start.y)
+        if not math.isfinite(optimal):
+            raise ValueError("start and goal are unreachable")
+
+        self.grid = grid
+        self.field = field
+        self.pose = start
         self.steps = 0
         self.path_length = 0.0
-        self.optimal = self.field.query(self.pose.x, self.pose.y)
-        self._prev_d = self.optimal
+        self.optimal = optimal
+        self._prev_d = optimal
+        self._done = False
         obs = self.renderer.render(self.scene, self.pose)
         info = {"geodesic": self._prev_d, "optimal": self.optimal,
                 "path_length": 0.0, "success": False, "collision": False, "steps": 0}
         return obs, info
 
     def step(self, action: int):
+        if self.grid is None or self.field is None:
+            raise RuntimeError("reset must be called before step")
+        if self._done:
+            raise RuntimeError("cannot step after episode is done")
+        try:
+            action = Action(action)
+        except ValueError:
+            raise ValueError(f"invalid action: {action}") from None
+
         cfg = self.config
         collision = False
         if action == Action.MOVE_FORWARD:
             nx = self.pose.x + cfg.step_size * math.cos(self.pose.heading)
             ny = self.pose.y + cfg.step_size * math.sin(self.pose.heading)
-            if self.grid.is_blocked_world(nx, ny):
+            if self._segment_blocked(self.pose.x, self.pose.y, nx, ny):
                 collision = True
             else:
                 self.path_length += math.hypot(nx - self.pose.x, ny - self.pose.y)
@@ -91,15 +114,24 @@ class SceneSearchEnv:
         self._prev_d = d
         self.steps += 1
 
-        euclid_to_ball = math.hypot(self.scene.ball[0] - self.pose.x,
-                                    self.scene.ball[1] - self.pose.y)
-        success = euclid_to_ball <= cfg.success_radius
+        success = math.isfinite(d) and d <= cfg.success_radius
         reward = cfg.alpha * progress - cfg.beta - (cfg.kappa if collision else 0.0)
         if success:
             reward += cfg.goal_reward
         done = success or self.steps >= cfg.max_steps
+        self._done = done
 
         obs = self.renderer.render(self.scene, self.pose)
         info = {"geodesic": d, "optimal": self.optimal, "path_length": self.path_length,
                 "success": success, "collision": collision, "steps": self.steps}
         return obs, reward, done, info
+
+    def _segment_blocked(self, x0: float, y0: float, x1: float, y1: float) -> bool:
+        if self.grid is None:
+            return True
+        if self.grid.is_blocked_world(x1, y1):
+            return True
+        for obstacle in self.scene.obstacles:
+            if segment_intersects_aabb(x0, y0, x1, y1, obstacle.inflate(self.scene.agent_radius)):
+                return True
+        return False

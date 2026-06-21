@@ -56,6 +56,8 @@ r_t = alpha * (d_{t-1} - d_t)     # geodesic progress  (closer => positive)
 | `wanderai/environment.py` | `SceneSearchEnv` (gym-style `reset`/`step`, reward) |
 | `wanderai/metrics.py` | SPL (Success weighted by Path Length) + summaries |
 | `wanderai/policies.py` | `RandomPolicy`, privileged `OraclePolicy`, `run_episode` |
+| `wanderai/hud_adapter.py` | HUD MCP tool adapter around `SceneSearchEnv` |
+| `env.py` / `tasks.py` | HUD v6 environment and concrete task rows |
 
 `StubRenderer` is a dependency-free stand-in so the environment runs in CI; the
 **Antim Labs** renderer drops in behind the same `Renderer` interface. A learned
@@ -71,22 +73,40 @@ train on N rooms and report SPL on held-out rooms.
 ## Quickstart
 
 ```bash
-pip install -e .          # numpy
-pip install pytest        # tests
-pytest -q                 # 25 tests
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+python -m pytest -q
 python -m scripts.run_episode
+```
+
+HUD local iteration:
+
+```bash
+hud task list --source tasks.py
+hud task start find_red_ball --source tasks.py --args '{}'
+hud eval tasks.py claude --task-ids 0 --max-steps 30 -y -v
+hud eval tasks.py claude --full --group 3 --max-steps 100 -y
+hud serve env:env --host 0.0.0.0 --port 8765
+```
+
+HUD submission/deploy:
+
+```bash
+hud deploy
+hud sync tasks wanderai-scene-search
+hud eval "wanderai-scene-search" claude --remote --task-ids 0 -y
 ```
 
 Current baselines on `default_scene` (privileged oracle vs. random):
 
 ```
-oracle {'success_rate': 1.0, 'spl': 1.0,  'mean_steps': 22}
-random {'success_rate': 0.4, 'spl': 0.23, 'mean_steps': 176}
+oracle {'success_rate': 1.0, 'spl': 0.79, 'mean_steps': 33}
+random {'success_rate': 0.4, 'spl': 0.20, 'mean_steps': 207}
 ```
 
-The oracle (geodesic descent) hits SPL 1.0, confirming the environment is solvable and
-the distance field is correct; the wide oracle-vs-random gap is the room a learned
-policy has to close.
+The oracle (geodesic descent) reliably succeeds, confirming the environment is
+solvable; the wide oracle-vs-random gap is the room a learned policy has to close.
 
 ## Roadmap
 
