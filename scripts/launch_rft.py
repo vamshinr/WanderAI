@@ -20,7 +20,7 @@ ACCOUNT_ID = os.environ.get("FIREWORKS_ACCOUNT_ID", "vamshinr5899-p0wudhc")
 EVALUATOR_ID = "rft-evaltest-wander-rftpy"
 DATASET_ID = "wander-rft-train"
 BASE_MODEL = "accounts/fireworks/models/llama-v3p1-8b-instruct"
-OUTPUT_MODEL = "wander-rft-v1"
+OUTPUT_MODEL = "wander-rft-v1"   # expanded to a full resource path below
 JSONL = "data/rft_train.jsonl"
 
 
@@ -31,9 +31,13 @@ def main():
     evaluator_resource = f"accounts/{ACCOUNT_ID}/evaluators/{EVALUATOR_ID}"
 
     print(f">>> uploading dataset from {JSONL}")
-    dsid, _ = create_dataset_from_jsonl(ACCOUNT_ID, api_key, api_base, DATASET_ID,
-                                        "WanderAI RFT train", JSONL)
-    dataset_resource = f"accounts/{ACCOUNT_ID}/datasets/{dsid}"
+    try:
+        dsid, _ = create_dataset_from_jsonl(ACCOUNT_ID, api_key, api_base, DATASET_ID,
+                                            "WanderAI RFT train", JSONL)
+        dataset_resource = f"accounts/{ACCOUNT_ID}/datasets/{dsid}"
+    except Exception as e:                       # already uploaded on a prior run
+        print("    upload note:", str(e)[:160])
+        dataset_resource = f"accounts/{ACCOUNT_ID}/datasets/{DATASET_ID}"
     print("    dataset:", dataset_resource)
 
     print(f">>> waiting for evaluator {EVALUATOR_ID} to become ACTIVE")
@@ -53,7 +57,8 @@ def main():
         account_id=ACCOUNT_ID,
         evaluator=evaluator_resource,
         dataset=dataset_resource,
-        training_config={"base_model": BASE_MODEL, "output_model": OUTPUT_MODEL,
+        training_config={"base_model": BASE_MODEL,
+                         "output_model": f"accounts/{ACCOUNT_ID}/models/{OUTPUT_MODEL}",
                          "epochs": 1, "lora_rank": 8},
         inference_parameters={"max_output_tokens": 128, "temperature": 0.7},
     )
