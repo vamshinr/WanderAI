@@ -16,7 +16,8 @@ RFT requires."""
 from __future__ import annotations
 import math
 from dataclasses import dataclass
-from .environment import SceneSearchEnv, EnvConfig
+from .environment import SceneSearchEnv, EnvConfig, Action
+from .geometry import AABB, Pose
 from .scene import Scene
 
 PROGRESS_WEIGHT = 0.7      # partial credit for closing geodesic distance
@@ -70,6 +71,86 @@ def group_advantages(rewards: list[float]) -> list[float]:
     if std < 1e-8:
         return [0.0] * n
     return [(r - mean) / std for r in rewards]
+
+
+def scene_to_dict(s: Scene) -> dict:
+    return {"bounds": [s.bounds.min_x, s.bounds.min_y, s.bounds.max_x, s.bounds.max_y],
+            "obstacles": [[o.min_x, o.min_y, o.max_x, o.max_y] for o in s.obstacles],
+            "ball": list(s.ball), "agent_radius": s.agent_radius,
+            "start": [s.agent_start.x, s.agent_start.y, s.agent_start.heading]}
+
+
+def scene_from_dict(d: dict) -> Scene:
+    return Scene(AABB(*d["bounds"]), [AABB(*o) for o in d["obstacles"]],
+                 tuple(d["ball"]), Pose(*d["start"]), d["agent_radius"])
+
+
+def _downhill_dir(field, x, y, step) -> float:
+    """Direction (radians) that most reduces geodesic distance from (x, y) — the
+    way the agent *should* be heading."""
+    best_a, best_d = 0.0, math.inf
+    for k in range(8):
+        a = k * math.pi / 4
+        d = field.query(x + step * math.cos(a), y + step * math.sin(a))
+        if d < best_d:
+            best_d, best_a = d, a
+    return best_a
+
+
+def single_step_reward(scene: Scene, pose, action: int, config: EnvConfig | None = None) -> float:
+    """Score ONE action from a pose, in [0, 1] — the RFT verifier. Crucially it is
+    *direction-aware*, so it distinguishes turning toward vs. away from the goal:
+      reach ball -> 1.0;  collide -> 0.0;
+      MOVE_FORWARD -> 0.5 ± geodesic distance closed;
+      TURN_*       -> 0.5 ± how much better it orients you toward the downhill
+                      (toward-goal) direction.
+    Without the orientation term, both turns would tie at 0.5 and the model could
+    never learn which way to turn."""
+    env = SceneSearchEnv(scene, config=config or EnvConfig())
+    env.reset()
+    env.pose = Pose(*pose)
+    field, step = env.field, env.config.step_size
+    prev_d = field.query(env.pose.x, env.pose.y)
+    theta = _downhill_dir(field, env.pose.x, env.pose.y, step)
+    align_before = math.cos(env.pose.heading - theta)
+
+    _, _, _, info = env.step(action)
+    if info["success"]:
+        return 1.0
+    if info["collision"]:
+        return 0.0
+
+    if action == Action.MOVE_FORWARD:
+        d = info["geodesic"]
+        if not (math.isfinite(prev_d) and math.isfinite(d)):
+            return 0.5
+        progress = (prev_d - d) / step                       # +1 ideal toward, -1 away
+        return max(0.0, min(1.0, 0.5 + 0.5 * progress))
+    # a turn: did it orient us better toward the downhill direction?
+    align_after = math.cos(env.pose.heading - theta)
+    return max(0.0, min(1.0, 0.5 + 1.5 * (align_after - align_before)))
+
+
+def build_dataset(scenes, policies, max_steps: int = 40, config: EnvConfig | None = None):
+    """Roll out `policies` across `scenes` and capture each visited state as a
+    training row: the egocentric observation (prompt) + the serialized scene/pose
+    (so the verifier can score any action the model proposes). Mixing oracle and
+    random policies covers both good and bad states the model must handle."""
+    config = config or EnvConfig(max_steps=max_steps)
+    rows = []
+    for i, scene in enumerate(scenes):
+        policy = policies[i % len(policies)]
+        env = SceneSearchEnv(scene, config=config)
+        env.reset()
+        done = False
+        for _ in range(max_steps):
+            rows.append({"obs": env.text_observation(),
+                         "scene": scene_to_dict(scene),
+                         "pose": [env.pose.x, env.pose.y, env.pose.heading]})
+            _, _, done, _ = env.step(policy.act(None, env))
+            if done:
+                break
+    return rows
 
 
 def grpo_preview(scene: Scene, policy_factory, group_size: int = 4,

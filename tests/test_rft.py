@@ -1,7 +1,9 @@
 import math
-from wanderai.rft import (episode_reward, run_scored, group_advantages, grpo_preview)
-from wanderai.environment import EnvConfig
-from wanderai.scene import default_scene
+from wanderai.rft import (episode_reward, run_scored, group_advantages, grpo_preview,
+                          single_step_reward, scene_to_dict, scene_from_dict, build_dataset)
+from wanderai.environment import EnvConfig, Action
+from wanderai.geometry import AABB, Pose
+from wanderai.scene import Scene, default_scene
 from wanderai.scene_gen import make_split
 from wanderai.policies import OraclePolicy, RandomPolicy
 
@@ -39,6 +41,46 @@ def test_group_advantages_standardize():
 
 def test_group_advantages_zero_variance():
     assert group_advantages([0.4, 0.4, 0.4]) == [0.0, 0.0, 0.0]
+
+
+def test_scene_serialization_roundtrip():
+    s = default_scene()
+    s2 = scene_from_dict(scene_to_dict(s))
+    assert s2.ball == s.ball and len(s2.obstacles) == len(s.obstacles)
+    assert s2.bounds.max_x == s.bounds.max_x
+
+
+def test_single_step_reward_forward_progress():
+    s = Scene(AABB(0, 0, 6, 6), [], (5.0, 1.0), Pose(1.0, 1.0, 0.0), 0.2)  # facing ball (+x)
+    fwd = single_step_reward(s, (1.0, 1.0, 0.0), Action.MOVE_FORWARD)
+    assert fwd > 0.5                        # moving toward the ball is rewarded
+
+
+def test_single_step_reward_distinguishes_turn_direction():
+    # Ball is to the +x; agent faces +y. Turning RIGHT (toward the ball) must beat
+    # turning LEFT (away) — the fix that makes turn direction learnable.
+    s = Scene(AABB(0, 0, 6, 6), [], (5.0, 1.0), Pose(1.0, 1.0, math.pi / 2), 0.2)
+    pose = (1.0, 1.0, math.pi / 2)
+    right = single_step_reward(s, pose, Action.TURN_RIGHT)
+    left = single_step_reward(s, pose, Action.TURN_LEFT)
+    assert right > 0.5 > left
+
+
+def test_single_step_reward_success_and_collision():
+    reach = Scene(AABB(0, 0, 6, 6), [], (1.3, 1.0), Pose(1.0, 1.0, 0.0), 0.2)
+    assert single_step_reward(reach, (1.0, 1.0, 0.0), Action.MOVE_FORWARD) == 1.0
+    wall = Scene(AABB(0, 0, 6, 6), [AABB(1.3, 0, 1.6, 6)], (5, 1), Pose(1.0, 1.0, 0.0), 0.2)
+    assert single_step_reward(wall, (1.0, 1.0, 0.0), Action.MOVE_FORWARD) == 0.0
+
+
+def test_build_dataset_rows_have_prompt_and_state():
+    _, scenes = make_split(0, 3, seed=9)
+    rows = build_dataset(scenes, [OraclePolicy(), RandomPolicy(seed=0)], max_steps=10)
+    assert len(rows) > 0
+    r = rows[0]
+    assert "Red ball" in r["obs"] and "scene" in r and len(r["pose"]) == 3
+    # the verifier can score the captured state
+    assert 0.0 <= single_step_reward(scene_from_dict(r["scene"]), r["pose"], Action.MOVE_FORWARD) <= 1.0
 
 
 def test_grpo_preview_produces_signal_with_stochastic_policy():

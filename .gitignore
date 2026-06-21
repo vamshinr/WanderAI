@@ -224,3 +224,6 @@ __marimo__/
 
 # Antim/Gizmo scene cache
 scenes_cache/
+
+# RFT generated data
+data/
