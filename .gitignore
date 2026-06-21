@@ -227,3 +227,6 @@ scenes_cache/
 
 # RFT generated data
 data/
+
+# HUD venv (python3.12)
+.venv-hud/
