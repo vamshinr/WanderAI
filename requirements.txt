@@ -1,0 +1,2 @@
+# RFT evaluator (rft_eval/test_wander_rft.py) is self-contained: stdlib + the
+# eval_protocol harness provided by Fireworks. No extra runtime deps needed.
