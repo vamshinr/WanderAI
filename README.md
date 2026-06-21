@@ -33,32 +33,40 @@ ball is once it actually comes into view, so it has to **search**, not beeline.
 
 ## For judges — try it in the UI
 
+Two ways to try it: the **hosted link** (zero setup, 2D scenes) or **locally** (adds the
+3D MuJoCo scene).
+
+### ▶ Easiest — the live hosted demo (no setup)
+
+**Open → https://vamshinr-wanderai.hf.space**
+(Space page: https://huggingface.co/spaces/vamshinr/wanderai)
+
+1. Click **Default scene** (or **New scene** with a random seed for an unseen room).
+2. Click **▶ Trained** (the model dropdown defaults to **st1**, our proven 2D model).
+3. Watch it search first-person: it turns to scan, advances into open space, and homes in
+   once the ball enters its line of sight. On the map you'll see:
+   - the **amber trail** — the exact path it walked;
+   - **green cells** — ground it remembers visiting (it favors NEW ground);
+   - the side panel — the live observation it reads (`Red ball: VISIBLE …` appears *only*
+     when the ball is genuinely in view).
+
+> The first **Trained** click cold-starts the model on Fireworks (~a few seconds), then
+> it's fast. The hosted link runs the **2D** scenes; the **3D** scene needs MuJoCo (GL),
+> so run it locally (below).
+
+### Run locally — adds the 3D MuJoCo scene
+
 **Prereq:** put `FIREWORKS_API_KEY=...` in `.env` (the trained models are served on
 Fireworks; the app calls them server-side — the key never reaches the browser).
 
 ```bash
-python3 serve.py
-# → opens http://localhost:8000
-# (auto-relaunches under the MuJoCo venv .venv-hud when you load a 3D scene)
+python3 serve.py        # → http://localhost:8000  (auto-uses .venv-hud for MuJoCo/3D)
 ```
 
-### Test the 2D scene
-1. Click **Default scene** (or **New scene** with a random seed for an unseen room).
-2. Click **▶ Trained**.
-3. Watch it search first-person: it turns to scan, advances into open space, and
-   homes in once the ball enters its line of sight. On the map you'll see:
-   - the **amber trail** — the exact path it walked;
-   - **green cells** — ground it remembers visiting (it favors NEW ground);
-   - the side panel — the live symbolic observation it reads (`Red ball: VISIBLE …`
-     appears *only* when the ball is genuinely in view).
-
-### Test the 3D test scene
-1. Click **Load 3D Test scene** — a real Gizmo-exported room rendered in MuJoCo.
-2. Top-right shows the agent's **first-person RGB + depth** camera; the canvas shows
-   the top-down map.
-3. Click **▶ Trained**.
-4. Same honest search inside the 3D room — amber trail + green explored cells on the
-   map as it navigates toward the ball.
+- **2D:** same steps as above.
+- **3D test scene:** click **Load 3D Test scene** — a real Gizmo-exported MuJoCo room.
+  Top-right shows the agent's first-person **RGB + depth** camera; click **▶ Trained** and
+  watch the same honest search (amber trail + green explored cells) inside the 3D room.
 
 ### What to look for (and what makes it legit)
 - It **explores** — it can't see the ball through walls, so it doesn't beeline.
