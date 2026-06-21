@@ -19,9 +19,11 @@ from eval_protocol.fireworks_rft import (
 ACCOUNT_ID = os.environ.get("FIREWORKS_ACCOUNT_ID", "vamshinr5899-p0wudhc")
 EVALUATOR_ID = "rft-evaltest-wander-rftpy"
 DATASET_ID = os.environ.get("WANDER_DATASET_ID", "wander-rft-train-v2")
-BASE_MODEL = "accounts/fireworks/models/llama-v3p1-8b-instruct"
+# llama-v3p1-8b-instruct was DEPRECATED 2025-11-26 → RFT jobs die at ~2% with an
+# internal error. llama-v3-8b-instruct is the current rlLoraTunable 8B-instruct base.
+BASE_MODEL = os.environ.get("WANDER_BASE_MODEL", "accounts/fireworks/models/llama-v3-8b-instruct")
 OUTPUT_MODEL = os.environ.get("WANDER_OUTPUT_MODEL", "wander-rft-v2")  # full path built below
-JSONL = "data/rft_train.jsonl"
+JSONL = os.environ.get("WANDER_JSONL", "data/rft_train.jsonl")
 EPOCHS = int(os.environ.get("WANDER_EPOCHS", "10"))
 LORA_RANK = int(os.environ.get("WANDER_LORA_RANK", "16"))
 

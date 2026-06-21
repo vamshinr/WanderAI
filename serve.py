@@ -7,10 +7,12 @@ oracle / random policy, while watching the geodesic field, the agent's FOV, and
 the live *symbolic observation* the RFT text policy will consume.
 """
 from __future__ import annotations
+import base64
+import io
 import json
 import math
 import os
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import numpy as np
 
@@ -21,6 +23,41 @@ from wanderai.observation import DEFAULT_FOV
 from wanderai.policies import OraclePolicy, RandomPolicy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+# 3D vision scenes (Phase B): the agent sees the room via MuJoCo RGB+depth.
+_SCENES_3D = {
+    "test": os.path.join(HERE, "examples", "js76kpb923w3tnvv8thabsdcw58931g0.xml"),
+    "train": os.path.join(HERE, "examples", "js755rrf6gmkwj444nzqh6ermx89394v.xml"),
+}
+_scene3d_cache: dict = {}
+
+
+def _png_data_url(rgb: np.ndarray) -> str:
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.fromarray(rgb).save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _depth_to_rgb(depth: np.ndarray, max_depth: float) -> np.ndarray:
+    """Colourise a depth buffer with a jet colormap: near = red, far = blue."""
+    n = np.clip(depth / max(max_depth, 1e-3), 0, 1)      # 0 near .. 1 far
+    v = 1.0 - n                                          # 1 near .. 0 far
+    r = np.clip(1.5 - np.abs(4 * v - 3), 0, 1)
+    g = np.clip(1.5 - np.abs(4 * v - 2), 0, 1)
+    b = np.clip(1.5 - np.abs(4 * v - 1), 0, 1)
+    return (np.stack([r, g, b], axis=-1) * 255).astype(np.uint8)
+
+
+def _fpv_payload(env) -> dict | None:
+    """The agent's first-person RGB + colourised depth, as data URLs — only when
+    the env is backed by the MuJoCo (vision) renderer."""
+    r = getattr(env, "renderer", None)
+    if r is None or not hasattr(r, "render_rgb_depth"):
+        return None
+    rgb, depth = r.render_rgb_depth(env.scene, env.pose)
+    return {"rgb": _png_data_url(rgb),
+            "depth": _png_data_url(_depth_to_rgb(depth, r.max_depth))}
 # The RFT-trained policy. A LoRA addon on a dedicated deployment must be addressed
 # as "<model>#<deployment>" (the bare model id 404s). scripts/deploy_trained.py
 # writes the current address to .trained_model.txt; env var overrides that.
@@ -50,6 +87,7 @@ def _field_payload(env: SceneSearchEnv):
 
 def _scene_payload(env: SceneSearchEnv, info: dict):
     s = env.scene
+    fpv = _fpv_payload(env)
     return {
         "bounds": s.bounds.__dict__,
         "obstacles": [o.__dict__ for o in s.obstacles],
@@ -59,6 +97,8 @@ def _scene_payload(env: SceneSearchEnv, info: dict):
         "fov": DEFAULT_FOV,
         "field": _field_payload(env),
         "info": _info_payload(info),
+        "fpv": fpv,
+        "mode": "3d" if fpv else "2d",
     }
 
 
@@ -142,6 +182,30 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({**_scene_payload(env, info), "cumulative": 0.0,
                             "done": False, "source": "antim"})
 
+            elif self.path == "/api/load_3d":
+                try:
+                    from wanderai.mujoco_renderer import load_mjcf_3d
+                except ModuleNotFoundError as e:
+                    import sys
+                    return self._json({"error": (
+                        f"3D vision needs MuJoCo, missing in this interpreter ({e.name}). "
+                        f"Install it for the python running serve.py:  "
+                        f"{sys.executable} -m pip install mujoco")}, 500)
+                which = self._read_json().get("scene", "test")
+                if which not in _SCENES_3D:
+                    return self._json({"error": f"unknown 3D scene '{which}'"}, 400)
+                if which not in _scene3d_cache:
+                    _scene3d_cache[which] = load_mjcf_3d(_SCENES_3D[which])
+                scene3d, renderer = _scene3d_cache[which]
+                env = SceneSearchEnv(scene3d, renderer=renderer,
+                                     config=EnvConfig(max_steps=400, perception="vision"))
+                _, info = env.reset()
+                st["env"] = env
+                st["cumulative"] = 0.0
+                st["random_policy"] = RandomPolicy()
+                self._json({**_scene_payload(env, info), "cumulative": 0.0,
+                            "done": False, "source": f"3d:{which}"})
+
             elif self.path == "/api/step":
                 env = st.get("env")
                 if env is None:
@@ -155,6 +219,7 @@ class Handler(BaseHTTPRequestHandler):
                     "cumulative": round(float(st["cumulative"]), 4),
                     "done": bool(done),
                     "info": _info_payload(info),
+                    "fpv": _fpv_payload(env),
                 })
 
             elif self.path == "/api/policy_action":
@@ -204,7 +269,10 @@ def _load_dotenv(path=os.path.join(HERE, ".env")):
 def main():
     _load_dotenv()
     port = int(os.environ.get("PORT", "8000"))
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    # Single-threaded: the MuJoCo GL context is thread-affine (rendering from a
+    # second thread segfaults on macOS), and a local single-user demo serialises
+    # requests anyway. The 2D path is unaffected.
+    server = HTTPServer(("127.0.0.1", port), Handler)
     server.state = {"env": None, "cumulative": 0.0, "random_policy": RandomPolicy(),
                     "llm_policy": None}
     print(f"WanderAI visualizer → http://localhost:{port}  (Ctrl+C to stop)")

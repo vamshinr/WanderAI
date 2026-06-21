@@ -23,6 +23,14 @@ async def main():
     agent = WanderBridgeAgent(config=cfg, wander_model=model)
 
     ts = Taskset.from_module("tasks.py")
+    only = os.environ.get("WANDER_TASK_SLUG")        # e.g. find-ball-3d-test
+    if only:
+        # Taskset.items() yields (slug, task) pairs.
+        kept = [task for slug, task in ts.items() if slug == only]
+        if not kept:
+            have = [slug for slug, _ in ts.items()]
+            raise SystemExit(f"no task with slug '{only}'; have {have}")
+        ts = Taskset(tasks=kept)
     print(f"running {len(list(ts.items()))} task(s) with our model:\n  {model}\n")
     job = await ts.run(agent, group=1, max_concurrent=1)
 

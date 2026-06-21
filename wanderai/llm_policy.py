@@ -14,6 +14,7 @@ import json
 import os
 import re
 import ssl
+import time
 import urllib.request
 import urllib.error
 from .environment import Action
@@ -68,19 +69,22 @@ def _ssl_context() -> ssl.SSLContext:
 class LLMPolicy:
     def __init__(self, model: str | None = None, api_key: str | None = None,
                  reasoning_effort: str = "low", max_tokens: int = 256,
-                 temperature: float = 0.0, timeout: int = 60):
+                 temperature: float = 0.0, timeout: int = 60, retries: int = 8):
         self.model = model or DEFAULT_MODEL
         self.api_key = api_key or os.environ.get("FIREWORKS_API_KEY")
         self.reasoning_effort = reasoning_effort
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.timeout = timeout
+        self.retries = retries                # ride out scale-to-zero cold starts
         self._ctx = _ssl_context()
         self.last_error: str | None = None   # set when a call fails (don't hide it)
 
     def _complete(self, messages) -> str:
         """One chat completion -> the assistant's text. Separated out so tests can
-        stub it without hitting the network."""
+        stub it without hitting the network. Retries transient 503/429/5xx with
+        backoff: a scale-to-zero LoRA deployment returns 503 for ~30-60s while its
+        replica spins up, so the first call after idle would otherwise fail."""
         if not self.api_key:
             raise RuntimeError("FIREWORKS_API_KEY not set")
         body = {"model": self.model, "messages": messages,
@@ -91,9 +95,22 @@ class LLMPolicy:
             FIREWORKS_BASE + "/chat/completions", data=json.dumps(body).encode(),
             headers={"Authorization": f"Bearer {self.api_key}",
                      "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=self.timeout, context=self._ctx) as r:
-            d = json.loads(r.read())
-        return d["choices"][0]["message"].get("content") or ""
+        last_exc = None
+        for attempt in range(self.retries + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout, context=self._ctx) as r:
+                    d = json.loads(r.read())
+                return d["choices"][0]["message"].get("content") or ""
+            except urllib.error.HTTPError as e:
+                last_exc = e
+                if e.code not in (429, 500, 502, 503, 504) or attempt == self.retries:
+                    raise
+            except (urllib.error.URLError, TimeoutError) as e:
+                last_exc = e
+                if attempt == self.retries:
+                    raise
+            time.sleep(min(12, 3 * (attempt + 1)))    # 3,6,9,12,... up to ~75s total
+        raise last_exc        # unreachable, but keeps type-checkers happy
 
     def act(self, obs, env) -> Action:
         try:

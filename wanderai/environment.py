@@ -29,6 +29,7 @@ class EnvConfig:
     kappa: float = 0.1          # collision penalty
     goal_reward: float = 10.0   # terminal success bonus
     gamma: float = 0.99
+    perception: str = "geometry"  # "geometry" (symbolic) or "vision" (RGB+depth)
 
 
 class SceneSearchEnv:
@@ -60,9 +61,19 @@ class SceneSearchEnv:
     def text_observation(self) -> str:
         """Egocentric symbolic view as text — the observation the RFT text policy
         reads. Includes episodic (visited-areas) memory, in-context, because where
-        the agent has been *this episode* cannot live in the model's weights."""
-        return observation_text(observe(self.scene, self.pose, history=self.history,
-                                        visited=self.visited))
+        the agent has been *this episode* cannot live in the model's weights.
+
+        In ``perception="vision"`` mode the view is decoded from the renderer's
+        RGB+depth frame (Phase B) instead of from privileged geometry; the text
+        format is identical either way, so the policy is unchanged."""
+        if self.config.perception == "vision":
+            from .perception import perceive
+            obs = perceive(self.renderer, self.scene, self.pose,
+                           history=self.history, visited=self.visited)
+        else:
+            obs = observe(self.scene, self.pose, history=self.history,
+                          visited=self.visited)
+        return observation_text(obs)
 
     def reset(self):
         self.grid = OccupancyGrid.from_scene(self.scene, self.config.cell_size)

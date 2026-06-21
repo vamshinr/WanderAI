@@ -30,6 +30,7 @@ _SHELL = ("wall", "baseboard", "window", "frame", "glass", "ceiling",
           "door", "curtain", "blind", "skirting", "floor")
 _PASSABLE = ("rug", "mat", "carpet")
 _FLOOR_Z_MAX = 1.2              # ignore wall-mounted / ceiling objects above this
+_GROUND_TOL = 0.5             # a geom is "grounded" if its bottom is within this of the floor
 _DEFAULT_HALF = 0.3            # half-extent for furniture whose shape is unknown
 
 
@@ -44,14 +45,16 @@ def _tag(e):
 
 
 def _mesh_aabbs(root):
+    """name -> (min_x, min_y, max_x, max_y, min_z, max_z) in mesh-local frame."""
     out = {}
     asset = root.find("asset")
     for m in (asset.findall("mesh") if asset is not None else []):
         if m.get("vertex"):
             v = [float(x) for x in m.get("vertex").split()]
-            xs, ys = v[0::3], v[1::3]
+            xs, ys, zs = v[0::3], v[1::3], v[2::3]
             if xs and ys:
-                out[m.get("name")] = (min(xs), min(ys), max(xs), max(ys))
+                out[m.get("name")] = (min(xs), min(ys), max(xs), max(ys),
+                                      min(zs) if zs else 0.0, max(zs) if zs else 0.0)
     return out
 
 
@@ -91,16 +94,19 @@ def _collect(elem, ox, oy, oz, body, meshes, mats, geoms, bodies):
             if rgba is None and child.get("material"):
                 rgba = mats.get(child.get("material"))
             fp = None
+            z_bottom = wz
             if gtype == "mesh":
                 la = meshes.get(child.get("mesh"))
                 if la:
                     fp = AABB(wx + la[0], wy + la[1], wx + la[2], wy + la[3])
+                    z_bottom = wz + la[4]            # mesh-local min z lifted to world
             elif gtype in ("box", "plane"):
-                hx, hy, _ = _floats(child.get("size"), 3)
+                hx, hy, hz = _floats(child.get("size"), 3)
                 if hx > 0 and hy > 0:
                     fp = AABB(wx - hx, wy - hy, wx + hx, wy + hy)
-            geoms.append({"type": gtype, "x": wx, "y": wy, "z": wz, "rgba": rgba,
-                          "name": (child.get("name") or body or "").lower(),
+                z_bottom = wz - hz
+            geoms.append({"type": gtype, "x": wx, "y": wy, "z": wz, "z_bottom": z_bottom,
+                          "rgba": rgba, "name": (child.get("name") or body or "").lower(),
                           "body": (body or "").lower(), "footprint": fp})
         else:
             _collect(child, ox, oy, oz, body, meshes, mats, geoms, bodies)
@@ -145,8 +151,14 @@ def _place_ball(bounds, obstacles, agent_radius, step=0.3):
     return best
 
 
-def mjcf_to_scene(source: str, agent_radius: float = 0.2, margin: float = 0.2) -> Scene:
-    """Parse MJCF (XML string or path to .xml) into a solvable Scene."""
+def mjcf_to_scene(source: str, agent_radius: float = 0.2, margin: float = 0.2,
+                  return_meta: bool = False):
+    """Parse MJCF (XML string or path to .xml) into a solvable Scene.
+
+    With ``return_meta=True`` also returns a dict carrying the mapping back to the
+    original MuJoCo world frame — needed to drive a MuJoCo camera from Scene-frame
+    poses: ``world_x = scene_x - world_offset[0]`` (Scene is shifted so its floor
+    bbox starts at the origin), plus the floor's world z and the raw floor bounds."""
     xml = source
     if "\n" not in source and os.path.exists(source) and source.endswith(".xml"):
         with open(source) as fh:
@@ -192,13 +204,24 @@ def mjcf_to_scene(source: str, agent_radius: float = 0.2, margin: float = 0.2) -
                      None)
     ball_body = ball_geom["body"] if ball_geom else None
 
+    # Ground reference: a geom is an obstacle only if it's grounded (its bottom
+    # sits near the floor). This keeps floor-to-ceiling walls/dividers — tall, so
+    # their CENTRE is high — while still dropping wall-mounted decor (pictures,
+    # AC units, ceiling lights) that float above the floor and don't block a
+    # ground agent.
+    ground_z = (floor["z_bottom"] if floor is not None
+                else min((g["z_bottom"] for g in geoms), default=0.0))
+
+    def grounded(g):
+        return g["z_bottom"] <= ground_z + _GROUND_TOL
+
     obstacles = []
     geom_obstacle_bodies = set()
     for g in geoms:
         if g is floor or g["footprint"] is None or g["type"] in ("sphere", "plane"):
             continue
         name = g["name"] + " " + g["body"]
-        if _is_shell(name) or any(k in name for k in _PASSABLE) or g["z"] > _FLOOR_Z_MAX:
+        if _is_shell(name) or any(k in name for k in _PASSABLE) or not grounded(g):
             continue
         ob = clip(g["footprint"])
         if ob:
@@ -221,7 +244,14 @@ def mjcf_to_scene(source: str, agent_radius: float = 0.2, margin: float = 0.2) -
     else:
         ball = _place_ball(bounds, obstacles, agent_radius)
     start = _place_agent(bounds, obstacles, agent_radius, ball)
-    return Scene(bounds, obstacles, ball, start, agent_radius)
+    scene = Scene(bounds, obstacles, ball, start, agent_radius)
+    if return_meta:
+        floor_z = floor["z"] if floor is not None else 0.0
+        meta = {"world_offset": (dx, dy), "floor_z": float(floor_z),
+                "raw_bounds": (raw.min_x, raw.min_y, raw.max_x, raw.max_y),
+                "ball_from_mjcf": ball_geom is not None}
+        return scene, meta
+    return scene
 
 
 def mjcf_zip_to_scene(zip_path: str, **kw) -> Scene:

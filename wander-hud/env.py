@@ -8,6 +8,7 @@ it closed. Run:  hud eval tasks.py claude --gateway
 import asyncio
 import contextlib
 import math
+import os
 import socket
 
 from hud import Environment
@@ -17,6 +18,23 @@ from wanderai.environment import SceneSearchEnv, EnvConfig, Action
 from wanderai.scene_gen import make_split
 
 env = Environment(name="wander-scene-search")
+
+# --- 3D vision scenes (Phase B): the agent sees the room via MuJoCo RGB+depth ---
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SCENES_3D = {
+    "test": os.path.join(_REPO, "examples", "js76kpb923w3tnvv8thabsdcw58931g0.xml"),
+    "train": os.path.join(_REPO, "examples", "js755rrf6gmkwj444nzqh6ermx89394v.xml"),
+}
+_scene3d_cache = {}
+
+
+def _load_3d(which):
+    """Load (and cache) a 3D scene + MuJoCo renderer — recompiling per episode is
+    wasteful and the renderer holds a GL context."""
+    if which not in _scene3d_cache:
+        from wanderai.mujoco_renderer import load_mjcf_3d
+        _scene3d_cache[which] = load_mjcf_3d(_SCENES_3D[which])
+    return _scene3d_cache[which]
 
 # One container per evaluation, so a module-global episode is safe.
 _state = {"env": None, "optimal": 0.0, "final_geo": math.inf, "success": False, "steps": 0}
@@ -33,6 +51,18 @@ async def reset_room(seed: int = 0) -> str:
     _state.update(env=e, optimal=info["optimal"], final_geo=info["geodesic"],
                   success=False, steps=0)
     return f"New room. {info['obs_text']}"
+
+
+async def reset_room_3d(scene: str = "test") -> str:
+    """Start a search episode in a 3D MuJoCo room ('test' or 'train'); the agent
+    perceives it through rendered RGB+depth. Returns the first observation."""
+    s3, renderer = _load_3d(scene)
+    e = SceneSearchEnv(s3, renderer=renderer,
+                       config=EnvConfig(max_steps=120, perception="vision"))
+    _, info = e.reset()
+    _state.update(env=e, optimal=info["optimal"], final_geo=info["geodesic"],
+                  success=False, steps=0)
+    return f"New 3D room ({scene}). {info['obs_text']}"
 
 
 async def move(action: int) -> str:
@@ -76,6 +106,7 @@ async def _up():
     if _SRV is None:
         server = FastMCP(name="scene-search")
         server.tool(reset_room)
+        server.tool(reset_room_3d)
         server.tool(move)
         _MCP_PORT = _free_port()
         _SRV = asyncio.create_task(
@@ -106,6 +137,30 @@ async def find_red_ball(seed: int = 0):
         "Repeatedly call move(action) — 0=forward, 1=turn left, 2=turn right — using "
         "the observation each step (it tells you if the ball is visible, its bearing, "
         "and the clearance left/center/right). Keep going until you FIND THE RED BALL."
+    )
+    opt, fg = _state["optimal"], _state["final_geo"]
+    if _state["success"]:
+        reward = 1.0
+    elif opt > 0 and math.isfinite(fg):
+        reward = max(0.0, min(1.0, (opt - fg) / opt))
+    else:
+        reward = 0.0
+    yield reward
+
+
+@env.template(id="find-red-ball-3d")
+async def find_red_ball_3d(scene: str = "test"):
+    """Navigate a real 3D MuJoCo room — perceived through rendered RGB+depth — to
+    reach the red ball. Reward = success, else the fraction of geodesic closed."""
+    obs = await reset_room_3d(scene)
+    _ = yield (
+        "You control an agent in a 3D room and must reach a RED BALL. You perceive "
+        "the room through a first-person camera (RGB + depth).\n"
+        f"{obs}\n"
+        "Repeatedly call move(action) — 0=forward, 1=turn left, 2=turn right — using "
+        "the observation each step (it tells you if the ball is visible, its bearing, "
+        "and the clearance left/center/right from depth). Keep going until you FIND "
+        "THE RED BALL."
     )
     opt, fg = _state["optimal"], _state["final_geo"]
     if _state["success"]:

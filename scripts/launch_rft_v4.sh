@@ -25,17 +25,26 @@ ACCT="${WANDER_ACCOUNT:-vamshinr5899-p0wudhc}"
 OUT="${WANDER_OUTPUT_MODEL:-accounts/${ACCT}/models/wander-rft-v4}"
 EPOCHS="${WANDER_EPOCHS:-10}"
 LORA="${WANDER_LORA_RANK:-16}"
+# Base model must be BOTH rlLoraTunable (RFT-eligible — NOT just `tunable`, which is
+# only SFT) AND not deprecated. The original llama-v3p1-8b-instruct was RFT-eligible
+# but DEPRECATED 2025-11-26 → jobs died at ~2% with "Rollout job failed: Internal
+# error" (v3 hvsj77kq, v4 c8ir3r0p/n2gu8jnx). llama-v3p2-3b-instruct is NOT
+# rlLoraTunable → clean 400 "not supported for reinforcement fine-tuning".
+# llama-v3-8b-instruct: rlLoraTunable=True, dep=None, trainingContextLength=131072,
+# same 8B Llama-instruct class as the original — the correct current base.
+BASE="${WANDER_BASE_MODEL:-accounts/fireworks/models/llama-v3-8b-instruct}"
 
-echo "Launching v4 multi-turn RFT -> ${OUT}  (epochs=${EPOCHS}, lora_rank=${LORA})"
+echo "Launching v4 multi-turn RFT -> ${OUT}  (base=${BASE##*/}, epochs=${EPOCHS}, lora_rank=${LORA})"
 # NOTE: do NOT pass --dataset (it expects an existing dataset *id*, not a path).
 # ep infers the JSONL from the evaluator's input_dataset=[wander_lake/data/...],
 # runs it through the dataset_adapter, and uploads it as a proper dataset resource.
 exec ep create rft \
   --evaluator test-wander-rl-wander-rl \
-  --training-config-base-model accounts/fireworks/models/llama-v3p1-8b-instruct \
+  --training-config-base-model "${BASE}" \
   --training-config-output-model "${OUT}" \
   --training-config-epochs "${EPOCHS}" \
   --training-config-lora-rank "${LORA}" \
+  --inference-parameters-max-output-tokens 256 \
   --skip-validation \
   --force \
   --yes

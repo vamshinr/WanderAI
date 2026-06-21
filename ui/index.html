@@ -44,20 +44,48 @@
   .pill.bad  { color:var(--bad);  border-color:var(--bad); }
   .legend { font-size:11px; color:var(--muted); }
   kbd { background:#21262d; border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:11px; }
+  .fpv { display:flex; gap:8px; }
+  .fpv figure { margin:0; flex:1; }
+  .fpv img { width:100%; aspect-ratio:4/3; object-fit:cover; border:1px solid var(--line);
+             border-radius:6px; image-rendering:pixelated; background:#000; display:block; }
+  .fpv figcaption { font-size:10px; color:var(--muted); text-align:center; margin-top:4px;
+                    text-transform:uppercase; letter-spacing:1px; }
+  #fpvCard { display:none; }
+  #fpvCard.on { display:block; }
 </style>
 </head>
 <body>
 <header>
   <h1>WanderAI</h1>
-  <span class="sub">scene-agnostic object search · symbolic-observation visualizer</span>
+  <span class="sub">scene-agnostic object search · 2D symbolic + 3D vision (MuJoCo RGB+depth)</span>
 </header>
 
 <div class="wrap">
   <canvas id="cv" width="680" height="600"></canvas>
 
   <div class="side">
+    <div class="card" id="fpvCard">
+      <h2>Agent's view — first person (RGB + depth)</h2>
+      <div class="fpv">
+        <figure><img id="fpvRgb" alt="rgb" /><figcaption>RGB camera</figcaption></figure>
+        <figure><img id="fpvDepth" alt="depth" /><figcaption>Depth</figcaption></figure>
+      </div>
+      <p class="legend" style="margin:8px 0 0;">The text observation below is decoded
+         from these pixels — the ball from RGB, distances/clearances from depth.</p>
+    </div>
+
     <div class="card">
-      <h2>Scene</h2>
+      <h2>3D Vision scene (MuJoCo)</h2>
+      <div class="row">
+        <button id="load3dTest" class="primary">▶ Load 3D Test scene</button>
+        <button id="load3dTrain">Load 3D Train scene</button>
+      </div>
+      <p class="legend" style="margin:8px 0 0;">Loads a real Gizmo-exported room rendered
+         in MuJoCo. The agent navigates it from RGB+depth perception alone.</p>
+    </div>
+
+    <div class="card">
+      <h2>Scene (2D procedural)</h2>
       <div class="row">
         seed <input id="seed" type="number" value="0" />
         <button id="newScene" class="primary">New Scene</button>
@@ -190,13 +218,24 @@ function setStatus(info, cum, done) {
   else              { st.textContent='searching'; st.className='pill'; }
 }
 
+function updateFPV(fpv) {
+  const card = $('fpvCard');
+  if (fpv && fpv.rgb) {
+    card.classList.add('on');
+    $('fpvRgb').src = fpv.rgb;
+    $('fpvDepth').src = fpv.depth;
+  } else {
+    card.classList.remove('on');
+  }
+}
+
 async function load(endpoint, body) {
   stop();
   const data = await post(endpoint, body);
   if (data.error) { alert('Scene load failed: ' + data.error); return; }
   scene = data; T = makeTransform(scene.bounds);
   $('reward').textContent='–'; $('cum').textContent='0.000';
-  setStatus(scene.info, 0, false); draw();
+  setStatus(scene.info, 0, false); updateFPV(scene.fpv); draw();
 }
 const newScene = opts => load('/api/reset', opts);
 
@@ -206,7 +245,7 @@ async function step(action) {
   if (d.error) { alert(d.error); return null; }
   scene.agent = d.agent;
   $('reward').textContent = d.reward.toFixed(3);
-  setStatus(d.info, d.cumulative, d.done); draw();
+  setStatus(d.info, d.cumulative, d.done); updateFPV(d.fpv); draw();
   return d;
 }
 
@@ -248,6 +287,8 @@ $('mjcfFile').onchange = async e => {
   e.target.value = '';
 };
 $('loadGizmo').onclick = () => load('/api/import_mjcf', {path: 'examples/gizmo_real_export.xml'});
+$('load3dTest').onclick = () => load('/api/load_3d', {scene: 'test'});
+$('load3dTrain').onclick = () => load('/api/load_3d', {scene: 'train'});
 document.querySelectorAll('[data-act]').forEach(b =>
   b.onclick = () => { stop(); step(+b.dataset.act); });
 document.addEventListener('keydown', e => {

@@ -97,7 +97,8 @@ def _downhill_dir(field, x, y, step) -> float:
     return best_a
 
 
-def single_step_reward(scene: Scene, pose, action: int, config: EnvConfig | None = None) -> float:
+def single_step_reward(scene: Scene, pose, action: int, config: EnvConfig | None = None,
+                       env: SceneSearchEnv | None = None) -> float:
     """Score ONE action from a pose, in [0, 1] — the RFT verifier. Crucially it is
     *direction-aware*, so it distinguishes turning toward vs. away from the goal:
       reach ball -> 1.0;  collide -> 0.0;
@@ -105,12 +106,19 @@ def single_step_reward(scene: Scene, pose, action: int, config: EnvConfig | None
       TURN_*       -> 0.5 ± how much better it orients you toward the downhill
                       (toward-goal) direction.
     Without the orientation term, both turns would tie at 0.5 and the model could
-    never learn which way to turn."""
-    env = SceneSearchEnv(scene, config=config or EnvConfig())
-    env.reset()
+    never learn which way to turn.
+
+    Pass a pre-reset `env` (same scene) to reuse its occupancy/geodesic field — the
+    field build dominates cost, so reuse makes scoring thousands of states cheap."""
+    if env is None:
+        env = SceneSearchEnv(scene, config=config or EnvConfig())
+        env.reset()
+    env.history = []
+    env.steps = 0
     env.pose = Pose(*pose)
     field, step = env.field, env.config.step_size
     prev_d = field.query(env.pose.x, env.pose.y)
+    env._prev_d = prev_d
     theta = _downhill_dir(field, env.pose.x, env.pose.y, step)
     align_before = math.cos(env.pose.heading - theta)
 
