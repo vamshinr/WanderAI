@@ -18,6 +18,13 @@ DEFAULT_FOV = math.pi / 2
 DEFAULT_MAX_VIEW = 8.0
 DEFAULT_CLEARANCE_RANGE = 6.0
 DEFAULT_HISTORY = 4
+VISIT_CELL = 0.5            # episodic memory resolution (meters)
+VISIT_LOOKAHEAD = 1.0      # how far ahead to probe "explored vs new" (meters)
+
+
+def visit_key(x: float, y: float, cell: float = VISIT_CELL):
+    """Coarse cell id for episodic (visited-areas) memory."""
+    return (int(math.floor(x / cell)), int(math.floor(y / cell)))
 
 
 def cast_ray(scene: Scene, x: float, y: float, angle: float, max_range: float) -> float:
@@ -50,9 +57,11 @@ class Observation:
     ball_distance: float | None     # meters
     clearance: dict                 # {"left", "center", "right"} -> meters
     recent_actions: list            # action names, oldest..newest
+    explored: dict                  # {"left","center","right"} -> bool (already visited?)
+    n_visited: int                  # distinct cells visited this episode
 
 
-def observe(scene: Scene, pose: Pose, history=None,
+def observe(scene: Scene, pose: Pose, history=None, visited=None,
            fov: float = DEFAULT_FOV, max_view: float = DEFAULT_MAX_VIEW,
            clearance_range: float = DEFAULT_CLEARANCE_RANGE) -> Observation:
     visible = ball_visible(scene, pose, fov, max_view)
@@ -67,7 +76,17 @@ def observe(scene: Scene, pose: Pose, history=None,
         "right": cast_ray(scene, pose.x, pose.y, pose.heading - fov / 2, clearance_range),
     }
     recent = [getattr(a, "name", str(a)) for a in (history or [])][-DEFAULT_HISTORY:]
-    return Observation(visible, bearing, distance, clearance, recent)
+
+    # Episodic memory: is the cell a step ahead in each direction already visited?
+    visited = visited or set()
+    def seen(angle):
+        px = pose.x + VISIT_LOOKAHEAD * math.cos(angle)
+        py = pose.y + VISIT_LOOKAHEAD * math.sin(angle)
+        return visit_key(px, py) in visited
+    explored = {"left": seen(pose.heading + fov / 2),
+                "center": seen(pose.heading),
+                "right": seen(pose.heading - fov / 2)}
+    return Observation(visible, bearing, distance, clearance, recent, explored, len(visited))
 
 
 def observation_text(obs: Observation) -> str:
@@ -82,5 +101,9 @@ def observation_text(obs: Observation) -> str:
     c = obs.clearance
     clear = (f"Clearance — left {c['left']:.1f}m, center {c['center']:.1f}m, "
              f"right {c['right']:.1f}m.")
+    e = obs.explored
+    tag = lambda b: "explored" if b else "NEW"
+    mem = (f"Explored — left: {tag(e['left'])}, center: {tag(e['center'])}, "
+           f"right: {tag(e['right'])} ({obs.n_visited} cells seen).")
     moves = ", ".join(obs.recent_actions) if obs.recent_actions else "none"
-    return f"{ball} {clear} Recent moves: {moves}."
+    return f"{ball} {clear} {mem} Recent moves: {moves}."

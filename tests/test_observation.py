@@ -52,6 +52,23 @@ def test_observe_clearance_keys_and_memory():
     assert obs.recent_actions[-1] == "TURN_LEFT"
 
 
+def test_observe_visited_areas_memory():
+    from wanderai.observation import visit_key
+    s = _empty_room()
+    # Mark the cell ~1m ahead (+x) as already visited.
+    ahead = visit_key(2 + 1.0, 2)
+    obs = observe(s, Pose(2, 2, 0.0), visited={ahead})
+    assert obs.explored["center"] is True       # straight ahead is explored
+    assert obs.explored["left"] is False         # sides are new
+    assert obs.n_visited == 1
+
+
+def test_observation_text_includes_explored():
+    s = _empty_room()
+    txt = observation_text(observe(s, Pose(2, 2, 0.0), visited=set()))
+    assert "Explored" in txt and "NEW" in txt
+
+
 def test_observation_text_is_readable():
     s = Scene(AABB(0, 0, 6, 6), [], (5.0, 3.0), Pose(1.0, 3.0, 0.0), 0.0)
     txt = observation_text(observe(s, Pose(1.0, 3.0, 0.0)))

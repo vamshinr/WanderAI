@@ -8,7 +8,7 @@ from .geometry import Pose, wrap_angle
 from .occupancy import OccupancyGrid
 from .distance_field import DistanceField
 from .renderer import Renderer, StubRenderer
-from .observation import observe, observation_text
+from .observation import observe, observation_text, visit_key
 
 
 class Action(IntEnum):
@@ -55,11 +55,14 @@ class SceneSearchEnv:
         self.optimal = math.inf
         self._prev_d = math.inf
         self.history: list[Action] = []
+        self.visited: set = set()
 
     def text_observation(self) -> str:
         """Egocentric symbolic view as text — the observation the RFT text policy
-        reads. Independent of the image path (which stays for the vision stretch)."""
-        return observation_text(observe(self.scene, self.pose, history=self.history))
+        reads. Includes episodic (visited-areas) memory, in-context, because where
+        the agent has been *this episode* cannot live in the model's weights."""
+        return observation_text(observe(self.scene, self.pose, history=self.history,
+                                        visited=self.visited))
 
     def reset(self):
         self.grid = OccupancyGrid.from_scene(self.scene, self.config.cell_size)
@@ -68,6 +71,7 @@ class SceneSearchEnv:
         self.steps = 0
         self.path_length = 0.0
         self.history = []
+        self.visited = {visit_key(self.pose.x, self.pose.y)}
         self.optimal = self.field.query(self.pose.x, self.pose.y)
         self._prev_d = self.optimal
         obs = self.renderer.render(self.scene, self.pose)
@@ -93,6 +97,7 @@ class SceneSearchEnv:
         elif action == Action.TURN_RIGHT:
             self.pose = Pose(self.pose.x, self.pose.y, wrap_angle(self.pose.heading - cfg.turn))
 
+        self.visited.add(visit_key(self.pose.x, self.pose.y))
         d = self.field.query(self.pose.x, self.pose.y)
         if math.isfinite(d) and math.isfinite(self._prev_d):
             progress = self._prev_d - d

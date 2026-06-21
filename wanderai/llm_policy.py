@@ -24,9 +24,11 @@ DEFAULT_MODEL = os.environ.get("FIREWORKS_MODEL", "accounts/fireworks/models/gpt
 SYSTEM_PROMPT = (
     "You control an agent in a room, searching for a RED BALL. You only see a "
     "first-person description: whether the ball is visible (and its bearing/distance), "
-    "how much open space is to your left/center/right, and your recent moves. "
-    "Goal: reach the red ball quickly. If it is not visible, explore (turn to scan, "
-    "move toward open space). Avoid turning in circles. "
+    "how much open space is to your left/center/right, which of those directions you "
+    "have already explored this run, and your recent moves. "
+    "Goal: reach the red ball quickly. If it is visible, head toward it. If not, "
+    "explore: move into open space and prefer directions marked NEW over ones marked "
+    "explored, so you cover new ground instead of circling. "
     "Think in at most one short sentence, then end with a line exactly:\n"
     "ACTION=<MOVE_FORWARD|TURN_LEFT|TURN_RIGHT>"
 )
