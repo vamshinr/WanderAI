@@ -16,13 +16,17 @@ sponsor tools into the clean seams we left.
 
 | | State |
 |---|---|
-| Core env (`wanderai/`) | ✅ Done — 8 modules, **25/25 tests pass**, 485 LOC |
-| Branch | `feat/scene-search-env` (pushed, in sync with `origin`) |
+| Core env (`wanderai/`) | ✅ Done — **44 tests pass** |
+| Branch | `feat/scene-search-env` |
 | Baselines | Oracle **SPL 1.0** / 22 steps · Random SPL 0.23 / 176 steps |
-| MuJoCo renderer | ⬜ Not started — **next task** |
-| HUD wrapper | ⬜ Not started |
-| Fireworks SFT policy | ⬜ Not started |
-| Training fork (SFT vs RFT) | ⏸️ Deferred by decision |
+| **Goal** | **RFT / RLVR for a scene-agnostic policy** (not SFT). Hybrid: symbolic-text first, vision stretch |
+| A1 symbolic observation | ✅ Done (`observation.py`) |
+| A2 procedural scenes + split | ✅ Done (`scene_gen.py`) |
+| A3 env text-obs mode | ✅ Done (`obs_text` in info) |
+| Browser visualizer | ✅ Done (`serve.py` + `ui/index.html`) — `python serve.py` |
+| A4 LLM text policy + held-out eval | ⬜ Next |
+| A5 RFT training loop | ⬜ After A4 |
+| MuJoCo renderer (vision) | ⬜ Phase B stretch |
 
 ## The pipeline (and where each sponsor tool plugs in)
 
@@ -115,19 +119,24 @@ call via OpenAI-compatible endpoint `https://api.fireworks.ai/inference/v1`. Doc
 the only export with camera sensors**). No Python SDK, access gated — email viswajit@antimlabs.com /
 Discord for a key + credits on-site.
 
-## Next steps (prioritized)
+## Next steps (prioritized) — RFT path
 
-1. **MuJoCo renderer** (`wanderai/mujoco_renderer.py`) — `MuJoCoRenderer.render(scene, pose) → HxWx3
-   uint8`: build `MjModel` (floor plane + box geom per obstacle + red sphere ball), place camera at
-   `(x, y, heading)`, render. TDD like the rest; it slots behind the existing `Renderer` ABC so
-   nothing downstream changes. **This unblocks real SFT data.**
-2. **Oracle data dump** — run the oracle across many generated scenes, save `(image.png, action)`
-   pairs → `train.jsonl` (base64 images) for Fireworks.
-3. **Fireworks SFT** — fine-tune Qwen-VL on `train.jsonl`, deploy, wrap as a `FireworksPolicy`
-   implementing `act(obs, env) → Action` (vision-only; must NOT read `env.field`).
-4. **HUD wrapper** — expose `SceneSearchEnv` as an MCP environment; run evals, get traces + SPL.
-5. **Scene generation** — procedural rooms in code first; optionally Antim/Gizmo for visual variety.
-6. **(Stretch) RFT / agent memory** — only if SFT lands and time remains.
+1. **A4 · LLM text policy + held-out eval** — `LLMPolicy.act` reads `info["obs_text"]`, calls a
+   Fireworks text model (OpenAI-compatible endpoint), parses one of `{MOVE_FORWARD, TURN_LEFT,
+   TURN_RIGHT}`. Eval SPL/success on held-out scenes from `make_split`. Establish baselines:
+   random (floor), oracle (ceiling), untrained model. **Demo lands here** even pre-training.
+2. **A5 · RFT loop** — wrap the env for Fireworks RFT (Eval Protocol `RemoteRolloutProcessor` /
+   `firectl rftj create`) or HUD GRPO rollouts; reward = normalized geodesic return (RLVR). Train,
+   then show **held-out SPL rising** — the scene-agnostic result.
+3. **HUD wrapper** — expose `SceneSearchEnv` as an MCP environment (`@server.tool` reset/step,
+   `@env.template` yielding 0–1 reward) for traces + grouped rollouts.
+4. **Antim scene variety** — optionally feed Gizmo-generated rooms in alongside `scene_gen`.
+5. **Phase B (vision stretch)** — MuJoCo renderer behind the `Renderer` seam + a VLM policy, with
+   self-hosted RL (verl/TRL + GRPO on Modal), since Fireworks managed RFT looks text-only.
+6. **(Stretch) agent memory** — visited-cell memory in the observation for smarter search.
+
+Add `LLMPolicy` to the visualizer ("Run LLM" button) once A4 lands — it already drives
+oracle/random through `/api/policy_action`.
 
 ## Gotchas
 

@@ -73,9 +73,21 @@ train on N rooms and report SPL on held-out rooms.
 ```bash
 pip install -e .          # numpy
 pip install pytest        # tests
-pytest -q                 # 25 tests
+pytest -q                 # full suite
 python -m scripts.run_episode
 ```
+
+## Visualizer (browser UI)
+
+```bash
+python serve.py           # zero extra deps (stdlib only) → http://localhost:8000
+```
+
+Generate scenes (seeded or random), drive the agent with buttons / arrow keys, or
+run the oracle / random policy. The canvas shows the geodesic heatmap (bright = close
+to the ball) and the agent's FOV; the side panel shows live reward, efficiency, and
+the **symbolic observation** the RFT text policy actually reads. The agent never sees
+the map — only that text.
 
 Current baselines on `default_scene` (privileged oracle vs. random):
 
