@@ -21,6 +21,9 @@ from wanderai.observation import DEFAULT_FOV
 from wanderai.policies import OraclePolicy, RandomPolicy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# The RFT-trained policy (deployed via scripts/deploy_trained.py).
+TRAINED_MODEL = os.environ.get(
+    "WANDER_TRAINED_MODEL", "accounts/vamshinr5899-p0wudhc/models/wander-rft-v1")
 
 
 def _field_payload(env: SceneSearchEnv):
@@ -153,6 +156,12 @@ class Handler(BaseHTTPRequestHandler):
                         from wanderai.llm_policy import LLMPolicy
                         st["llm_policy"] = LLMPolicy()
                     policy = st["llm_policy"]
+                elif name == "trained":
+                    if st.get("trained_policy") is None:
+                        from wanderai.llm_policy import LLMPolicy
+                        st["trained_policy"] = LLMPolicy(model=TRAINED_MODEL,
+                                                         reasoning_effort=None)
+                    policy = st["trained_policy"]
                 else:
                     policy = st["random_policy"]
                 action = int(policy.act(None, env))
