@@ -236,9 +236,12 @@ class Handler(BaseHTTPRequestHandler):
                     policy = st["llm_policy"]
                 elif name == "trained":
                     if st.get("trained_policy") is None:
-                        from wanderai.llm_policy import AssistedLLMPolicy
-                        # trained model + geodesic safety-net: never gets stuck, always converges
-                        st["trained_policy"] = AssistedLLMPolicy(model=TRAINED_MODEL)
+                        from wanderai.llm_policy import GuidedLLMPolicy
+                        # The trained model drives from its egocentric view only; the
+                        # sole assist is CLEARANCE-based obstacle avoidance (no geodesic
+                        # field, no oracle, no hidden ball location). It genuinely
+                        # searches — it does not know where the ball is until it sees it.
+                        st["trained_policy"] = GuidedLLMPolicy(model=TRAINED_MODEL)
                     policy = st["trained_policy"]
                 else:
                     policy = st["random_policy"]

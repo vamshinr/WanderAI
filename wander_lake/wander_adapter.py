@@ -41,16 +41,24 @@ class WanderAdapter(EnvironmentAdapter):
         return env.text_observation(), info
 
     def step_environment(self, env: SceneSearchEnv, action: int):
+        d_before = env._prev_d
         _, _, done, info = env.step(int(action))
         terminated = bool(info["success"])
         truncated = bool(done and not info["success"])
-        if terminated:
-            reward = 1.0
-        elif truncated:
-            opt, fg = info["optimal"], info["geodesic"]
-            reward = max(0.0, min(1.0, (opt - fg) / opt)) if opt > 0 and math.isfinite(fg) else 0.0
+        opt, d_after = info["optimal"], info["geodesic"]
+        # DENSE, telescoping reward = the fraction of the optimal path closed THIS
+        # step. eval-protocol's get_total_reward SUMS per-step rewards, so this sums
+        # to (d_start - d_final)/optimal = total fraction of distance closed, plus a
+        # success bonus. The old reward only paid out on env *truncation* (max_steps
+        # 60), but the rollout's step budget (~30) ends first, so truncation never
+        # fired → every episode scored exactly 0.0 → zero reward variance → no GRPO
+        # gradient. Dense shaping gives a signal every step, regardless of step cap.
+        if opt > 0 and math.isfinite(d_before) and math.isfinite(d_after):
+            reward = (d_before - d_after) / opt
         else:
             reward = 0.0
+        if terminated:
+            reward += 1.0
         return env.text_observation(), reward, terminated, truncated, info
 
     def close_environment(self, env: SceneSearchEnv) -> None:

@@ -22,16 +22,25 @@ _LOCAL_MODEL = os.environ.get("WANDER_RL_MODEL", "fireworks_ai/accounts/firework
 
 
 def wander_to_rows(data: List[Dict[str, Any]]) -> List[EvaluationRow]:
+    """Adapt dataset rows to EvaluationRows. MUST be idempotent: `ep` runs this once
+    at UPLOAD time (raw JSONL -> EvaluationRow, which Fireworks stores), then Fireworks
+    runs it AGAIN at ROLLOUT time on the already-adapted rows. The raw rows have
+    `system_prompt`; the stored/adapted rows have `messages` instead — so re-adapting
+    a stored row as if it were raw raised `KeyError: 'system_prompt'`, crashing every
+    rollout instantly ("Rollout job failed: Internal error"). Detect which we got."""
     rows = []
     for row in data:
-        rows.append(EvaluationRow(
-            messages=[Message(role="system", content=row["system_prompt"])],
-            input_metadata=InputMetadata(
-                row_id=row["id"],
-                dataset_info={"environment_context": row["environment_context"],
-                              "user_prompt_template": row["user_prompt_template"]},
-            ),
-        ))
+        if "system_prompt" in row:                       # raw JSONL (local run / upload)
+            rows.append(EvaluationRow(
+                messages=[Message(role="system", content=row["system_prompt"])],
+                input_metadata=InputMetadata(
+                    row_id=row["id"],
+                    dataset_info={"environment_context": row["environment_context"],
+                                  "user_prompt_template": row["user_prompt_template"]},
+                ),
+            ))
+        else:                                            # already an EvaluationRow dict (Fireworks rollout)
+            rows.append(EvaluationRow.model_validate(row))
     return rows
 
 

@@ -11,6 +11,7 @@ reasoning model, so we use reasoning_effort=low and a parse-friendly format."""
 
 from __future__ import annotations
 import json
+import math
 import os
 import re
 import ssl
@@ -125,11 +126,12 @@ class LLMPolicy:
 
 
 class AssistedLLMPolicy:
-    """The trained LLM with a geodesic safety-net, so it never gets stuck and always
-    reaches the ball. When the model stalls (no geodesic progress) or ping-pongs
-    LEFT/RIGHT, we take ONE privileged geodesic-descent step to break the loop, then
-    hand control back to the model. Demo mode: guarantees convergence; the nudge
-    uses ground-truth geometry the model itself never sees."""
+    """PRIVILEGED reference only — NOT used by the localhost UI (that now uses
+    GuidedLLMPolicy). The trained LLM with a geodesic safety-net: when it stalls or
+    ping-pongs, it takes ONE oracle/geodesic-descent step toward the ball. That nudge
+    reads env.field (ground-truth distance to the ball) and the obstacle map, i.e. it
+    CHEATS — the agent shouldn't know where the ball is. Kept only as a clearly-labeled
+    privileged upper-ish reference in the eval suite; never for honest navigation."""
 
     def __init__(self, model: str | None = None, stuck_patience: int = 2):
         from .policies import OraclePolicy
@@ -160,5 +162,87 @@ class AssistedLLMPolicy:
         else:
             action = self.llm.act(obs, env)
             self.last_error = self.llm.last_error
+        self.recent.append(action)
+        return action
+
+
+# Clearance text the env emits: "Clearance — left 2.1m, center 0.4m, right 3.0m."
+_CLEAR_RE = re.compile(r"left\s+([\d.]+)m,\s*center\s+([\d.]+)m,\s*right\s+([\d.]+)m")
+_EXPLORED_RE = re.compile(r"Explored — left:\s*(\w+),\s*center:\s*(\w+),\s*right:\s*(\w+)")
+
+
+class GuidedLLMPolicy:
+    """The trained LLM, guided ONLY by what it can perceive — no cheating.
+
+    The model chooses every action from its egocentric observation (it only learns
+    where the ball is when the ball enters its line of sight). The single safety
+    layer is *clearance-based obstacle avoidance*, built from information already in
+    that observation — ray-cast clearance (left/center/right), the recent-move
+    history, and the visited/NEW flags. It NEVER reads the geodesic field, the
+    obstacle map, the ball's hidden location, or the oracle. So the agent genuinely
+    wanders and searches; it just won't grind into a wall or spin forever in place.
+
+    Interventions (all from the observation, none privileged):
+      1. model says MOVE_FORWARD but the way ahead is blocked -> turn to the side
+         with more open space (don't walk into the wall);
+      2. model has been turning in place for several steps and the way ahead is now
+         open -> take the forward step it's avoiding (escape the spin);
+      3. still spinning with no opening ahead -> turn toward the most-open and
+         least-explored side to scan for a way through.
+    """
+
+    def __init__(self, model: str | None = None, spin_patience: int = 4):
+        self.llm = LLMPolicy(model=model, reasoning_effort=None, temperature=0.0)
+        self.spin_patience = spin_patience
+        self._env = None
+        self.recent: list = []
+        self.last_error: str | None = None
+        self.assists = 0          # how often the clearance guard overrode the model
+
+    @staticmethod
+    def _clearance(text: str):
+        m = _CLEAR_RE.search(text or "")
+        if not m:
+            return None
+        return {"left": float(m.group(1)), "center": float(m.group(2)), "right": float(m.group(3))}
+
+    @staticmethod
+    def _explored(text: str):
+        m = _EXPLORED_RE.search(text or "")
+        if not m:
+            return {"left": "NEW", "center": "NEW", "right": "NEW"}
+        return {"left": m.group(1), "center": m.group(2), "right": m.group(3)}
+
+    def _open_turn(self, c, explored):
+        """Turn toward the side with more clearance, breaking ties toward NEW ground."""
+        left = c["left"] + (0.5 if explored.get("left") == "NEW" else 0.0)
+        right = c["right"] + (0.5 if explored.get("right") == "NEW" else 0.0)
+        return Action.TURN_LEFT if left >= right else Action.TURN_RIGHT
+
+    def act(self, obs, env) -> Action:
+        if env is not self._env:                       # new episode -> reset state
+            self._env, self.recent, self.assists = env, [], 0
+
+        text = env.text_observation()                  # the exact egocentric view
+        c = self._clearance(text)
+        action = self.llm.act(obs, env)                # the trained model decides
+        self.last_error = self.llm.last_error
+
+        if c is not None:
+            step = getattr(env.config, "step_size", 0.25)
+            blocked_ahead = c["center"] < step         # a forward step would collide
+            spinning = (len(self.recent) >= self.spin_patience
+                        and all(a is not Action.MOVE_FORWARD for a in self.recent[-self.spin_patience:]))
+
+            if action == Action.MOVE_FORWARD and blocked_ahead:
+                action = Action.TURN_LEFT if c["left"] >= c["right"] else Action.TURN_RIGHT
+                self.assists += 1
+            elif spinning and not blocked_ahead:
+                action = Action.MOVE_FORWARD           # opening ahead -> commit to it
+                self.assists += 1
+            elif spinning and blocked_ahead:
+                action = self._open_turn(c, self._explored(text))
+                self.assists += 1
+
         self.recent.append(action)
         return action
