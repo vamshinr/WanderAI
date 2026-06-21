@@ -76,6 +76,7 @@ class LLMPolicy:
         self.temperature = temperature
         self.timeout = timeout
         self._ctx = _ssl_context()
+        self.last_error: str | None = None   # set when a call fails (don't hide it)
 
     def _complete(self, messages) -> str:
         """One chat completion -> the assistant's text. Separated out so tests can
@@ -96,6 +97,11 @@ class LLMPolicy:
 
     def act(self, obs, env) -> Action:
         try:
-            return parse_action(self._complete(build_messages(env.text_observation())))
-        except Exception:
-            return Action.MOVE_FORWARD     # never crash the rollout on a bad call
+            action = parse_action(self._complete(build_messages(env.text_observation())))
+            self.last_error = None
+            return action
+        except Exception as e:
+            # Record the failure so callers can surface it — a silent MOVE_FORWARD
+            # fallback once masked a 404 as "the model always goes forward".
+            self.last_error = f"{type(e).__name__}: {e}"
+            return Action.MOVE_FORWARD

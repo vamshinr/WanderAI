@@ -21,9 +21,12 @@ from wanderai.observation import DEFAULT_FOV
 from wanderai.policies import OraclePolicy, RandomPolicy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# The RFT-trained policy (deployed via scripts/deploy_trained.py).
+# The RFT-trained policy. A LoRA addon served on a dedicated deployment must be
+# addressed as "<model>#<deployment>" — the bare model id 404s.
 TRAINED_MODEL = os.environ.get(
-    "WANDER_TRAINED_MODEL", "accounts/vamshinr5899-p0wudhc/models/wander-rft-v1")
+    "WANDER_TRAINED_MODEL",
+    "accounts/vamshinr5899-p0wudhc/models/wander-rft-v1"
+    "#accounts/vamshinr5899-p0wudhc/deployments/ykcmxh3l")
 
 
 def _field_payload(env: SceneSearchEnv):
@@ -165,6 +168,9 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     policy = st["random_policy"]
                 action = int(policy.act(None, env))
+                err = getattr(policy, "last_error", None)
+                if err:                       # surface model failures, don't fake a step
+                    return self._json({"error": f"policy '{name}' call failed: {err}"}, 502)
                 self._json({"action": action, "action_name": Action(action).name})
 
             else:
