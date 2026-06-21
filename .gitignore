@@ -1,3 +1,8 @@
+# eval-protocol RFT build artifacts (re-created on every `ep create rft`; must not
+# be re-tarred into the next evaluator upload)
+*.tar.gz
+.ep_tmp/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -233,3 +238,4 @@ data/
 
 # deployed-model address written by deploy_trained.py
 .trained_model.txt
+.DS_Store

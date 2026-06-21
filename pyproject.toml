@@ -15,3 +15,11 @@ include = ["wanderai*"]
 [tool.pytest.ini_options]
 # wander-hud/ is a separate HUD package (runs in .venv-hud on py3.12); don't collect it here.
 testpaths = ["tests"]
+# eval-protocol's `ep` discovers @evaluation_test by collecting EVERY *.py under the
+# repo root (python_files=*.py). Without this, it descends into .venv-hud/, wander-hud/
+# (needs the `hud` module, absent in py3.14), and one-off scripts/ — import errors there
+# make discovery return nothing. Restrict recursion so `ep` finds exactly the multi-turn
+# evaluator in wander_lake/. (Normal `pytest` uses testpaths=tests/, unaffected.)
+norecursedirs = [".*", "*.egg-info", "build", "dist", "venv", ".venv-hud", "wander-hud",
+                 "scripts", "examples", "ui", "data", "docs", "rft_eval", "node_modules",
+                 "__pycache__"]
