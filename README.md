@@ -1,4 +1,3 @@
-<!-- HuggingFace Space metadata (used when this repo is deployed as a Docker Space) -->
 ---
 title: WanderAI
 emoji: 🔴
@@ -176,6 +175,32 @@ non-idempotent dataset adapter, an all-zero reward (rollout step-cap below the e
 a base model that couldn't tool-call (→ `qwen3-4b`), and a fixed-port rollout-server
 collision (→ `server_mode="shared"`) — see [HANDOFF.md](HANDOFF.md) / commit history.
 
+**Reproduce** (datasets are 6 rooms with `/no_think` so qwen3-4b runs full 30-step
+episodes; 2D and 3D share the evaluator name → launch **sequentially**):
+
+```bash
+# 1. Train (each is a 1-epoch episodic RFT job on Fireworks; base must be qwen3-4b)
+export WANDER_BASE_MODEL=accounts/fireworks/models/qwen3-4b WANDER_EPOCHS=1 WANDER_MAX_TOKENS=1024
+WANDER_OUTPUT_MODEL=accounts/<acct>/models/wander-rft-2dmt-q bash scripts/launch_rft_v4.sh           # 2D
+WANDER_OUTPUT_MODEL=accounts/<acct>/models/wander-rft-3dmt-q \
+  WANDER_DATASET_JSONL=wander_lake/data/wander_dataset_3d.jsonl bash scripts/launch_rft_v4.sh        # 3D
+
+# 2. Deploy (qwen3 is NOT supported on A100, and H100 was capacity-exhausted → H200)
+WANDER_ACCELERATOR=NVIDIA_H200_141GB python scripts/deploy_trained.py wander-rft-3dmt-q
+
+# 3. HUD-eval our model end-to-end (native tool-calls; the `hud eval openai_compatible`
+#    CLI mis-routes "accounts/..." as a provider, so use run_native.py)
+cd wander-hud && WANDER_TRAINED_MODEL='<model>#<deployment>' \
+  WANDER_TASK_SLUG=find-ball-3d-sym-0 python run_native.py     # → reward 1.0 (reached the ball)
+
+# Teardown the H200 deployments (they bill per hour):
+WANDER_ACCELERATOR=NVIDIA_H200_141GB python scripts/deploy_trained.py wander-rft-3dmt-q --delete
+```
+
+The 3D model trains/evals on the real Gizmo MuJoCo scene's **geometry** (symbolic obs):
+Fireworks' rollout sandbox is headless, so vision is decoded only in the local UI/HUD,
+which can render. The matching HUD task is `find-ball-3d-sym-*` (`wander-hud/tasks.py`).
+
 ## Architecture
 
 | Module | Responsibility |
@@ -190,8 +215,9 @@ collision (→ `server_mode="shared"`) — see [HANDOFF.md](HANDOFF.md) / commit
 | `wanderai/policies.py` | `RandomPolicy`, privileged `OraclePolicy`, `run_episode` |
 | `wanderai/llm_policy.py` | `LLMPolicy` (Fireworks) + honest `GuidedLLMPolicy` |
 | `serve.py` + `ui/index.html` | Zero-dependency browser visualizer |
-| `wander-hud/` | HUD environment + multi-agent eval suite/leaderboard |
-| `wander_lake/` | Multi-turn (episodic) RFT environment (eval-protocol McpGym) |
+| `wander-hud/` | HUD environment + eval suite; `run_native.py` HUD-evals our tool-calling models |
+| `wander_lake/` | Multi-turn (episodic) RFT env (eval-protocol McpGym); `scene_3d` loads a real 3D scene |
+| `scripts/launch_rft_v4.sh` / `deploy_trained.py` | Launch episodic RFT (qwen3-4b) / deploy a model (any accelerator) |
 
 ## The visualizer (`serve.py`)
 
