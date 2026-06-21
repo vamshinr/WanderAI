@@ -3,7 +3,7 @@ name = "wanderai"
 version = "0.1.0"
 description = "Scene-agnostic egocentric object-search RL environment"
 requires-python = ">=3.10"
-dependencies = ["numpy"]
+dependencies = ["numpy", "certifi"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
