@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WanderAI · Scene-Search Visualizer</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3;
+          --muted:#8b949e; --accent:#58a6ff; --good:#3fb950; --bad:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex;
+           align-items:baseline; gap:14px; }
+  header h1 { font-size:16px; margin:0; letter-spacing:.5px; }
+  header .sub { color:var(--muted); font-size:12px; }
+  .wrap { display:flex; gap:18px; padding:18px; flex-wrap:wrap; }
+  canvas { background:#010409; border:1px solid var(--line); border-radius:8px; }
+  .side { width:340px; display:flex; flex-direction:column; gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+          padding:12px 14px; }
+  .card h2 { font-size:11px; text-transform:uppercase; letter-spacing:1px;
+             color:var(--muted); margin:0 0 10px; }
+  button { background:#21262d; color:var(--fg); border:1px solid var(--line);
+           border-radius:6px; padding:7px 10px; font:inherit; font-size:12px;
+           cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#06101f; border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input[type=number] { width:84px; background:#0d1117; color:var(--fg);
+           border:1px solid var(--line); border-radius:6px; padding:6px; font:inherit; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; font-size:13px; }
+  .grid .k { color:var(--muted); }
+  .grid .v { text-align:right; font-variant-numeric:tabular-nums; }
+  .obs { white-space:pre-wrap; line-height:1.5; font-size:12.5px; color:#c9d1d9;
+         background:#0d1117; border:1px solid var(--line); border-radius:6px; padding:10px; min-height:64px; }
+  .pill { padding:2px 8px; border-radius:999px; font-size:11px; border:1px solid var(--line); }
+  .pill.good { color:var(--good); border-color:var(--good); }
+  .pill.bad  { color:var(--bad);  border-color:var(--bad); }
+  .legend { font-size:11px; color:var(--muted); }
+  kbd { background:#21262d; border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WanderAI</h1>
+  <span class="sub">scene-agnostic object search · symbolic-observation visualizer</span>
+</header>
+
+<div class="wrap">
+  <canvas id="cv" width="680" height="600"></canvas>
+
+  <div class="side">
+    <div class="card">
+      <h2>Scene</h2>
+      <div class="row">
+        seed <input id="seed" type="number" value="0" />
+        <button id="newScene" class="primary">New Scene</button>
+        <button id="randSeed">🎲</button>
+        <button id="defScene">Default</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Drive the agent</h2>
+      <div class="row" style="margin-bottom:8px;">
+        <button data-act="1">⟲ Left</button>
+        <button data-act="0">▲ Forward</button>
+        <button data-act="2">⟳ Right</button>
+      </div>
+      <div class="row">
+        <button id="runOracle">▶ Run Oracle</button>
+        <button id="runRandom">▶ Run Random</button>
+        <button id="stop" disabled>■ Stop</button>
+      </div>
+      <p class="legend" style="margin:10px 0 0;">Keys: <kbd>↑</kbd> forward · <kbd>←</kbd>/<kbd>→</kbd> turn</p>
+    </div>
+
+    <div class="card">
+      <h2>Status <span id="state" class="pill">idle</span></h2>
+      <div class="grid">
+        <span class="k">steps</span><span class="v" id="steps">–</span>
+        <span class="k">reward (step)</span><span class="v" id="reward">–</span>
+        <span class="k">return (cum.)</span><span class="v" id="cum">–</span>
+        <span class="k">geodesic d</span><span class="v" id="geo">–</span>
+        <span class="k">optimal ℓ</span><span class="v" id="opt">–</span>
+        <span class="k">path walked</span><span class="v" id="path">–</span>
+        <span class="k">efficiency ℓ/p</span><span class="v" id="eff">–</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Symbolic observation (what the policy reads)</h2>
+      <div id="obs" class="obs">–</div>
+    </div>
+    <p class="legend">Heatmap = geodesic distance to the ball (bright = close). The
+       agent only ever sees the text above — never the map.</p>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let scene = null, T = null, timer = null;
+
+async function post(path, body) {
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
+                              body: JSON.stringify(body||{})});
+  return r.json();
+}
+const $ = id => document.getElementById(id);
+
+function makeTransform(b) {
+  const pad = 28, W = cv.width, H = cv.height;
+  const ww = b.max_x - b.min_x, wh = b.max_y - b.min_y;
+  const s = Math.min((W-2*pad)/ww, (H-2*pad)/wh);
+  return { s, toPx:(x,y)=>[pad+(x-b.min_x)*s, H-pad-(y-b.min_y)*s] };
+}
+
+function draw() {
+  if (!scene) return;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const f = scene.field;
+  // geodesic heatmap
+  let mx = 0;
+  for (const row of f.data) for (const v of row) if (v!==null && v>mx) mx=v;
+  for (let r=0;r<f.nrows;r++) for (let c=0;c<f.ncols;c++) {
+    const v = f.data[r][c]; if (v===null) continue;
+    const wx = f.origin[0]+c*f.cell_size, wy = f.origin[1]+r*f.cell_size;
+    const [px,py] = T.toPx(wx, wy+f.cell_size);
+    const t = 1 - v/(mx||1);                 // 1 near ball
+    ctx.fillStyle = `rgba(${40+t*200|0},${60+t*90|0},${120-t*60|0},0.55)`;
+    ctx.fillRect(px, py, f.cell_size*T.s+1, f.cell_size*T.s+1);
+  }
+  // obstacles
+  for (const o of scene.obstacles) {
+    const [x0,y0] = T.toPx(o.min_x, o.max_y), [x1,y1] = T.toPx(o.max_x, o.min_y);
+    ctx.fillStyle = '#2d333b'; ctx.strokeStyle = '#586069';
+    ctx.fillRect(x0,y0,x1-x0,y1-y0); ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+  }
+  // ball
+  const [bx,by] = T.toPx(scene.ball[0], scene.ball[1]);
+  ctx.fillStyle = '#f85149'; ctx.beginPath(); ctx.arc(bx,by,7,0,7); ctx.fill();
+  ctx.strokeStyle='#ffb3ad'; ctx.stroke();
+  // agent + FOV
+  const a = scene.agent, [ax,ay] = T.toPx(a.x,a.y), fov = scene.fov, R = 1.6*T.s;
+  ctx.strokeStyle = 'rgba(88,166,255,0.5)'; ctx.fillStyle='rgba(88,166,255,0.12)';
+  ctx.beginPath(); ctx.moveTo(ax,ay);
+  ctx.arc(ax,ay,R,-a.heading-fov/2,-a.heading+fov/2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#58a6ff';
+  ctx.beginPath();
+  const hx=Math.cos(a.heading), hy=Math.sin(a.heading);
+  ctx.moveTo(ax+hx*11, ay-hy*11);
+  ctx.lineTo(ax-hx*8-hy*7, ay+hy*8-hx*7);
+  ctx.lineTo(ax-hx*8+hy*7, ay+hy*8+hx*7);
+  ctx.closePath(); ctx.fill();
+}
+
+function setStatus(info, cum, done) {
+  $('steps').textContent = info.steps;
+  $('geo').textContent = info.geodesic ?? '∞';
+  $('opt').textContent = info.optimal ?? '∞';
+  $('path').textContent = info.path_length.toFixed(2);
+  $('eff').textContent = (info.optimal && info.path_length>0)
+      ? Math.min(1, info.optimal/info.path_length).toFixed(2) : '–';
+  if (cum!==undefined) $('cum').textContent = cum.toFixed(3);
+  $('obs').textContent = info.obs_text;
+  const st = $('state');
+  if (info.success) { st.textContent='FOUND ✓'; st.className='pill good'; }
+  else if (done)    { st.textContent='out of steps'; st.className='pill bad'; }
+  else              { st.textContent='searching'; st.className='pill'; }
+}
+
+async function newScene(opts) {
+  stop();
+  const data = await post('/api/reset', opts);
+  if (data.error) { alert(data.error); return; }
+  scene = data; T = makeTransform(scene.bounds);
+  $('reward').textContent='–'; $('cum').textContent='0.000';
+  setStatus(scene.info, 0, false); draw();
+}
+
+async function step(action) {
+  if (!scene) return null;
+  const d = await post('/api/step', {action});
+  if (d.error) { alert(d.error); return null; }
+  scene.agent = d.agent;
+  $('reward').textContent = d.reward.toFixed(3);
+  setStatus(d.info, d.cumulative, d.done); draw();
+  return d;
+}
+
+function stop() {
+  if (timer) clearInterval(timer); timer=null;
+  $('stop').disabled = true; $('runOracle').disabled=false; $('runRandom').disabled=false;
+}
+async function run(policy) {
+  if (!scene) return;
+  $('stop').disabled=false; $('runOracle').disabled=true; $('runRandom').disabled=true;
+  timer = setInterval(async () => {
+    const a = await post('/api/policy_action', {policy});
+    const d = await step(a.action);
+    if (!d || d.done) stop();
+  }, 180);
+}
+
+// wiring
+$('newScene').onclick = () => newScene({seed: +$('seed').value});
+$('defScene').onclick = () => newScene({scene:'default'});
+$('randSeed').onclick = () => { $('seed').value = Math.floor(Math.random()*1e6); newScene({seed:+$('seed').value}); };
+$('runOracle').onclick = () => run('oracle');
+$('runRandom').onclick = () => run('random');
+$('stop').onclick = stop;
+document.querySelectorAll('[data-act]').forEach(b =>
+  b.onclick = () => { stop(); step(+b.dataset.act); });
+document.addEventListener('keydown', e => {
+  const m = {ArrowUp:0, ArrowLeft:1, ArrowRight:2};
+  if (e.key in m) { e.preventDefault(); stop(); step(m[e.key]); }
+});
+
+newScene({scene:'default'});
+</script>
+</body>
+</html>
