@@ -24,6 +24,7 @@ sponsor tools into the clean seams we left.
 | A2 procedural scenes + split | ✅ Done (`scene_gen.py`) |
 | A3 env text-obs mode | ✅ Done (`obs_text` in info) |
 | Browser visualizer | ✅ Done (`serve.py` + `ui/index.html`) — `python serve.py` |
+| Antim/Gizmo client + MJCF importer | ✅ Done (`antim.py`, `antim_import.py`) — UI "Load MJCF". Gizmo gen is slow/stalls; flow is pre-generate+cache+import |
 | A4 LLM text policy + held-out eval | ⬜ Next |
 | A5 RFT training loop | ⬜ After A4 |
 | MuJoCo renderer (vision) | ⬜ Phase B stretch |

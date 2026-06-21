@@ -89,6 +89,25 @@ to the ball) and the agent's FOV; the side panel shows live reward, efficiency, 
 the **symbolic observation** the RFT text policy actually reads. The agent never sees
 the map — only that text.
 
+**Load an Antim/Gizmo (or any MuJoCo) scene:** click **Load MJCF file** and pick
+`examples/gizmo_sample_room.xml` (or any MJCF) — the importer extracts the floor,
+box obstacles, and red ball into a solvable `Scene` and the agent searches it.
+
+## Antim Labs / Gizmo
+
+`wanderai/antim.py` is a client for Gizmo's REST API (prompt → 3D scene → export
+MJCF/USD/SDF); `wanderai/antim_import.py` parses an exported MJCF into our `Scene`.
+Gizmo is a scene *generator*, not a renderer, and generation takes minutes, so the
+intended flow is **pre-generate + cache + import**, not live. Set `GIZMO_API_KEY` in
+`.env`. Example:
+
+```python
+from wanderai.antim import GizmoClient
+from wanderai.antim_import import mjcf_zip_to_scene
+path = GizmoClient().generate_export("a room with three boxes and a red ball", fmt="mjcf")
+scene = mjcf_zip_to_scene(path)
+```
+
 Current baselines on `default_scene` (privileged oracle vs. random):
 
 ```
