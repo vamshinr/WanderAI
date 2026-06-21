@@ -18,10 +18,12 @@ from eval_protocol.fireworks_rft import (
 
 ACCOUNT_ID = os.environ.get("FIREWORKS_ACCOUNT_ID", "vamshinr5899-p0wudhc")
 EVALUATOR_ID = "rft-evaltest-wander-rftpy"
-DATASET_ID = "wander-rft-train"
+DATASET_ID = os.environ.get("WANDER_DATASET_ID", "wander-rft-train-v2")
 BASE_MODEL = "accounts/fireworks/models/llama-v3p1-8b-instruct"
-OUTPUT_MODEL = "wander-rft-v1"   # expanded to a full resource path below
+OUTPUT_MODEL = os.environ.get("WANDER_OUTPUT_MODEL", "wander-rft-v2")  # full path built below
 JSONL = "data/rft_train.jsonl"
+EPOCHS = int(os.environ.get("WANDER_EPOCHS", "10"))
+LORA_RANK = int(os.environ.get("WANDER_LORA_RANK", "16"))
 
 
 def main():
@@ -59,7 +61,7 @@ def main():
         dataset=dataset_resource,
         training_config={"base_model": BASE_MODEL,
                          "output_model": f"accounts/{ACCOUNT_ID}/models/{OUTPUT_MODEL}",
-                         "epochs": 1, "lora_rank": 8},
+                         "epochs": EPOCHS, "lora_rank": LORA_RANK},
         inference_parameters={"max_output_tokens": 128, "temperature": 0.7},
     )
     print("\n✅ RFT JOB CREATED:", job.name)
