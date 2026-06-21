@@ -26,7 +26,7 @@ sponsor tools into the clean seams we left.
 | Browser visualizer | ✅ Done (`serve.py` + `ui/index.html`) — `python serve.py` |
 | Antim/Gizmo client + MJCF importer | ✅ Done (`antim.py`, `antim_import.py`) — UI "Load MJCF". Gizmo gen is slow/stalls; flow is pre-generate+cache+import |
 | A4 LLM text policy + held-out eval | ✅ Done (`llm_policy.py`, `evaluate.py`) — Fireworks `gpt-oss-20b`, "Run LLM" in UI. Untrained baseline wanders |
-| A5 RFT training loop | ⬜ Next — RFT `gpt-oss-20b` on the geodesic reward |
+| A5 RFT reward + GRPO signal | ✅ Built+verified (`rft.py`, `scripts/grpo_preview.py`, `docs/rft_launch.md`). Live signal: advantages spread 2.41 on real model. Weight-update job gated on Fireworks credits |
 | MuJoCo renderer (vision) | ⬜ Phase B stretch |
 
 ## The pipeline (and where each sponsor tool plugs in)
