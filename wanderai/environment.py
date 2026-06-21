@@ -8,6 +8,7 @@ from .geometry import Pose, wrap_angle
 from .occupancy import OccupancyGrid
 from .distance_field import DistanceField
 from .renderer import Renderer, StubRenderer
+from .observation import observe, observation_text
 
 
 class Action(IntEnum):
@@ -53,6 +54,12 @@ class SceneSearchEnv:
         self.path_length = 0.0
         self.optimal = math.inf
         self._prev_d = math.inf
+        self.history: list[Action] = []
+
+    def text_observation(self) -> str:
+        """Egocentric symbolic view as text — the observation the RFT text policy
+        reads. Independent of the image path (which stays for the vision stretch)."""
+        return observation_text(observe(self.scene, self.pose, history=self.history))
 
     def reset(self):
         self.grid = OccupancyGrid.from_scene(self.scene, self.config.cell_size)
@@ -60,15 +67,18 @@ class SceneSearchEnv:
         self.pose = self.scene.agent_start
         self.steps = 0
         self.path_length = 0.0
+        self.history = []
         self.optimal = self.field.query(self.pose.x, self.pose.y)
         self._prev_d = self.optimal
         obs = self.renderer.render(self.scene, self.pose)
         info = {"geodesic": self._prev_d, "optimal": self.optimal,
-                "path_length": 0.0, "success": False, "collision": False, "steps": 0}
+                "path_length": 0.0, "success": False, "collision": False, "steps": 0,
+                "obs_text": self.text_observation()}
         return obs, info
 
     def step(self, action: int):
         cfg = self.config
+        self.history.append(Action(action))
         collision = False
         if action == Action.MOVE_FORWARD:
             nx = self.pose.x + cfg.step_size * math.cos(self.pose.heading)
@@ -101,5 +111,6 @@ class SceneSearchEnv:
 
         obs = self.renderer.render(self.scene, self.pose)
         info = {"geodesic": d, "optimal": self.optimal, "path_length": self.path_length,
-                "success": success, "collision": collision, "steps": self.steps}
+                "success": success, "collision": collision, "steps": self.steps,
+                "obs_text": self.text_observation()}
         return obs, reward, done, info
