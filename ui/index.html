@@ -70,7 +70,7 @@
       <div class="row">
         <label class="filebtn"><input id="mjcfFile" type="file" accept=".xml" hidden />
           📁 Load MJCF file</label>
-        <button id="loadGizmo">Load latest Gizmo export</button>
+        <button id="loadGizmo">Load real Gizmo room</button>
       </div>
       <p class="legend" style="margin:8px 0 0;">Import an Antim/Gizmo-exported room
          (or any MuJoCo MJCF) and search it.</p>
@@ -231,7 +231,7 @@ $('mjcfFile').onchange = async e => {
   await load('/api/import_mjcf', {xml: await f.text()});
   e.target.value = '';
 };
-$('loadGizmo').onclick = () => load('/api/import_mjcf', {path: '/tmp/gizmo_auto.zip'});
+$('loadGizmo').onclick = () => load('/api/import_mjcf', {path: 'examples/gizmo_real_export.xml'});
 document.querySelectorAll('[data-act]').forEach(b =>
   b.onclick = () => { stop(); step(+b.dataset.act); });
 document.addEventListener('keydown', e => {

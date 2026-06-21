@@ -1,23 +1,36 @@
 """Import a MuJoCo MJCF scene (e.g. exported from Antim/Gizmo) into our `Scene`.
 
-Gizmo exports rich scenes; we extract what our 2D search env needs: the floor
-extent (bounds), box obstacle footprints, and the ball position. Geometry is
-projected to the floor plane (rotations ignored — an axis-aligned approximation).
-A free, reachable agent start is chosen so the imported scene is always solvable.
+Reality of Gizmo exports (learned from a real one): the room *shell* (floor,
+walls, baseboards, window frames) is inline `mesh` geoms with vertex data, but
+**furniture bodies carry only a position — their meshes are referenced externally
+and aren't in the export.** And Gizmo doesn't place our goal object. So we:
+  * take room bounds from the floor mesh,
+  * skip the wall shell,
+  * turn each floor-level furniture *body* into a default-sized box obstacle
+    (we only know where it is, not its exact shape),
+  * drop our own red ball into a free, reachable spot (unless the MJCF already
+    has a red/named sphere).
+The result is always a solvable search scene.
 
-This is format-driven (standard MJCF), not Gizmo-specific, so it also imports MJCF
-from any other source — including the Phase-B MuJoCo renderer's own scenes."""
+Footprints are axis-aligned (rotations ignored). Plain box/sphere/plane
+primitives are handled too, so non-Gizmo MJCF (incl. our Phase-B MuJoCo scenes)
+imports as well."""
 
 from __future__ import annotations
 import math
 import os
 import xml.etree.ElementTree as ET
 import zipfile
-import numpy as np
 from .geometry import AABB, Pose
 from .scene import Scene
 from .occupancy import OccupancyGrid
 from .distance_field import DistanceField
+
+_SHELL = ("wall", "baseboard", "window", "frame", "glass", "ceiling",
+          "door", "curtain", "blind", "skirting", "floor")
+_PASSABLE = ("rug", "mat", "carpet")
+_FLOOR_Z_MAX = 1.2              # ignore wall-mounted / ceiling objects above this
+_DEFAULT_HALF = 0.3            # half-extent for furniture whose shape is unknown
 
 
 def _floats(s, n=3, default=0.0):
@@ -26,26 +39,28 @@ def _floats(s, n=3, default=0.0):
     return parts[:n]
 
 
-def _collect_geoms(elem, ox=0.0, oy=0.0, out=None):
-    """Recursively gather geoms with world (x,y) accumulated from body offsets."""
-    if out is None:
-        out = []
-    for child in elem:
-        tag = child.tag.split("}")[-1]
-        if tag == "body":
-            bx, by, _ = _floats(child.get("pos"), 3)
-            _collect_geoms(child, ox + bx, oy + by, out)
-        elif tag == "geom":
-            gx, gy, _ = _floats(child.get("pos"), 3)
-            out.append({
-                "type": child.get("type", "sphere"),
-                "x": ox + gx, "y": oy + gy,
-                "size": _floats(child.get("size"), 3),
-                "rgba": _floats(child.get("rgba"), 4, default=1.0) if child.get("rgba") else None,
-                "name": (child.get("name") or "").lower(),
-            })
-        else:
-            _collect_geoms(child, ox, oy, out)
+def _tag(e):
+    return e.tag.split("}")[-1]
+
+
+def _mesh_aabbs(root):
+    out = {}
+    asset = root.find("asset")
+    for m in (asset.findall("mesh") if asset is not None else []):
+        if m.get("vertex"):
+            v = [float(x) for x in m.get("vertex").split()]
+            xs, ys = v[0::3], v[1::3]
+            if xs and ys:
+                out[m.get("name")] = (min(xs), min(ys), max(xs), max(ys))
+    return out
+
+
+def _materials(root):
+    out = {}
+    asset = root.find("asset")
+    for mat in (asset.findall("material") if asset is not None else []):
+        if mat.get("rgba"):
+            out[mat.get("name")] = _floats(mat.get("rgba"), 4, default=1.0)
     return out
 
 
@@ -53,11 +68,47 @@ def _is_redish(rgba):
     return rgba is not None and rgba[0] > 0.5 and rgba[1] < 0.4 and rgba[2] < 0.4
 
 
+def _is_shell(name):
+    return any(k in name for k in _SHELL)
+
+
+def _collect(elem, ox, oy, oz, body, meshes, mats, geoms, bodies):
+    """Recursively gather geom footprints and body world positions."""
+    for child in elem:
+        t = _tag(child)
+        if t == "body":
+            bx, by, bz = _floats(child.get("pos"), 3)
+            wx, wy, wz = ox + bx, oy + by, oz + bz
+            name = child.get("name", body)
+            bodies.append({"name": (name or "").lower(), "x": wx, "y": wy, "z": wz})
+            _collect(child, wx, wy, wz, name, meshes, mats, geoms, bodies)
+            continue
+        if t == "geom":
+            gx, gy, gz = _floats(child.get("pos"), 3)
+            wx, wy, wz = ox + gx, oy + gy, oz + gz
+            gtype = child.get("type", "mesh")
+            rgba = _floats(child.get("rgba"), 4, default=1.0) if child.get("rgba") else None
+            if rgba is None and child.get("material"):
+                rgba = mats.get(child.get("material"))
+            fp = None
+            if gtype == "mesh":
+                la = meshes.get(child.get("mesh"))
+                if la:
+                    fp = AABB(wx + la[0], wy + la[1], wx + la[2], wy + la[3])
+            elif gtype in ("box", "plane"):
+                hx, hy, _ = _floats(child.get("size"), 3)
+                if hx > 0 and hy > 0:
+                    fp = AABB(wx - hx, wy - hy, wx + hx, wy + hy)
+            geoms.append({"type": gtype, "x": wx, "y": wy, "z": wz, "rgba": rgba,
+                          "name": (child.get("name") or body or "").lower(),
+                          "body": (body or "").lower(), "footprint": fp})
+        else:
+            _collect(child, ox, oy, oz, body, meshes, mats, geoms, bodies)
+
+
 def _place_agent(bounds, obstacles, agent_radius, ball, step=0.4):
-    """Pick a free, reachable point far from the ball, facing roughly toward it."""
     probe = Scene(bounds, obstacles, ball, Pose(0, 0, 0), agent_radius)
-    grid = OccupancyGrid.from_scene(probe, 0.1)
-    field = DistanceField.from_grid(grid, ball)
+    field = DistanceField.from_grid(OccupancyGrid.from_scene(probe, 0.1), ball)
     best, best_d = None, -1.0
     y = bounds.min_y + agent_radius
     while y < bounds.max_y:
@@ -69,63 +120,106 @@ def _place_agent(bounds, obstacles, agent_radius, ball, step=0.4):
                     best_d, best = d, (x, y)
             x += step
         y += step
-    if best is None:                       # degenerate: fall back to a corner
+    if best is None:
         best = (bounds.min_x + agent_radius * 2, bounds.min_y + agent_radius * 2)
-    heading = math.atan2(ball[1] - best[1], ball[0] - best[0])
-    return Pose(best[0], best[1], heading)
+    return Pose(best[0], best[1], math.atan2(ball[1] - best[1], ball[0] - best[0]))
+
+
+def _place_ball(bounds, obstacles, agent_radius, step=0.3):
+    """Free cell farthest from room center (a corner) — a good search target."""
+    probe = Scene(bounds, obstacles, (0, 0), Pose(0, 0, 0), agent_radius)
+    cx, cy = (bounds.min_x + bounds.max_x) / 2, (bounds.min_y + bounds.max_y) / 2
+    best, best_d = None, -1.0
+    y = bounds.min_y + agent_radius
+    while y < bounds.max_y:
+        x = bounds.min_x + agent_radius
+        while x < bounds.max_x:
+            if probe.is_free(x, y):
+                d = (x - cx) ** 2 + (y - cy) ** 2
+                if d > best_d:
+                    best_d, best = d, (x, y)
+            x += step
+        y += step
+    if best is None:
+        raise ValueError("imported room has no free space for a ball")
+    return best
 
 
 def mjcf_to_scene(source: str, agent_radius: float = 0.2, margin: float = 0.2) -> Scene:
-    """Parse MJCF (an XML string or a path to a .xml) into a Scene."""
+    """Parse MJCF (XML string or path to .xml) into a solvable Scene."""
     xml = source
-    if os.path.exists(source) and source.endswith(".xml"):
+    if "\n" not in source and os.path.exists(source) and source.endswith(".xml"):
         with open(source) as fh:
             xml = fh.read()
     root = ET.fromstring(xml)
     world = root.find(".//worldbody")
     if world is None:
         raise ValueError("MJCF has no <worldbody>")
-    geoms = _collect_geoms(world)
+    geoms, bodies = [], []
+    _collect(world, 0.0, 0.0, 0.0, "", _mesh_aabbs(root), _materials(root), geoms, bodies)
 
-    boxes = [g for g in geoms if g["type"] == "box"]
-    spheres = [g for g in geoms if g["type"] == "sphere"]
-    planes = [g for g in geoms if g["type"] == "plane"]
-    if not spheres:
-        raise ValueError("no sphere found to use as the ball")
-
-    # Bounds: a finite floor plane if present, else the bbox of all geoms + margin.
-    if planes and planes[0]["size"][0] > 0 and planes[0]["size"][1] > 0:
-        p = planes[0]
-        hx, hy = p["size"][0], p["size"][1]
-        raw = AABB(p["x"] - hx, p["y"] - hy, p["x"] + hx, p["y"] + hy)
+    # Bounds from the floor: a plane geom (primitive scenes) or a geom named
+    # 'floor' (Gizmo's floor mesh), else the bbox of everything with a footprint.
+    floor = (next((g for g in geoms if g["type"] == "plane" and g["footprint"]), None)
+             or next((g for g in geoms
+                      if "floor" in (g["name"] + " " + g["body"]) and g["footprint"]), None))
+    if floor is not None:
+        raw = floor["footprint"]
     else:
-        xs, ys = [], []
-        for g in boxes + spheres:
-            r = g["size"][0]
-            xs += [g["x"] - r, g["x"] + r]
-            ys += [g["y"] - r, g["y"] + r]
-        raw = AABB(min(xs) - margin, min(ys) - margin, max(xs) + margin, max(ys) + margin)
+        fps = [g["footprint"] for g in geoms if g["footprint"]]
+        if not fps:
+            raise ValueError("MJCF has no usable geometry for bounds")
+        raw = AABB(min(f.min_x for f in fps) - margin, min(f.min_y for f in fps) - margin,
+                   max(f.max_x for f in fps) + margin, max(f.max_y for f in fps) + margin)
 
-    # Translate so the min corner is the origin (keeps coordinates non-negative).
     dx, dy = -raw.min_x, -raw.min_y
     bounds = AABB(0, 0, raw.max_x - raw.min_x, raw.max_y - raw.min_y)
+    room_area = bounds.max_x * bounds.max_y
+
+    def clip(fp):
+        ob = AABB(max(fp.min_x + dx, 0), max(fp.min_y + dy, 0),
+                  min(fp.max_x + dx, bounds.max_x), min(fp.max_y + dy, bounds.max_y))
+        if ob.max_x - ob.min_x <= 1e-3 or ob.max_y - ob.min_y <= 1e-3:
+            return None
+        if (ob.max_x - ob.min_x) * (ob.max_y - ob.min_y) > 0.8 * room_area:
+            return None                # spans the room — it's the floor, not an obstacle
+        return ob
+
+    # Ball from an existing red/named sphere (if any), so we don't turn it into
+    # an obstacle below.
+    ball_geom = next((g for g in geoms if g["type"] == "sphere"
+                      and (_is_redish(g["rgba"]) or "ball" in g["name"] or "sphere" in g["name"])),
+                     None)
+    ball_body = ball_geom["body"] if ball_geom else None
 
     obstacles = []
-    for b in boxes:
-        hx, hy = b["size"][0], b["size"][1]
-        ob = AABB(b["x"] + dx - hx, b["y"] + dy - hy, b["x"] + dx + hx, b["y"] + dy + hy)
-        # Clip to room; drop anything degenerate or fully outside.
-        ob = AABB(max(ob.min_x, bounds.min_x), max(ob.min_y, bounds.min_y),
-                  min(ob.max_x, bounds.max_x), min(ob.max_y, bounds.max_y))
-        if ob.max_x - ob.min_x > 1e-3 and ob.max_y - ob.min_y > 1e-3:
+    geom_obstacle_bodies = set()
+    for g in geoms:
+        if g is floor or g["footprint"] is None or g["type"] in ("sphere", "plane"):
+            continue
+        name = g["name"] + " " + g["body"]
+        if _is_shell(name) or any(k in name for k in _PASSABLE) or g["z"] > _FLOOR_Z_MAX:
+            continue
+        ob = clip(g["footprint"])
+        if ob:
+            obstacles.append(ob)
+            geom_obstacle_bodies.add(g["body"])
+
+    # Furniture bodies with no inline geometry → default-sized box at their spot.
+    for b in bodies:
+        name = b["name"]
+        if (_is_shell(name) or any(k in name for k in _PASSABLE) or b["z"] > _FLOOR_Z_MAX
+                or name == ball_body or name in geom_obstacle_bodies):
+            continue
+        h = _DEFAULT_HALF
+        ob = clip(AABB(b["x"] - h, b["y"] - h, b["x"] + h, b["y"] + h))
+        if ob:
             obstacles.append(ob)
 
-    # Ball: prefer a red sphere, then one named ball/sphere, else the smallest.
-    ball_geom = (next((s for s in spheres if _is_redish(s["rgba"])), None)
-                 or next((s for s in spheres if "ball" in s["name"] or "sphere" in s["name"]), None)
-                 or min(spheres, key=lambda s: s["size"][0]))
-    ball = (ball_geom["x"] + dx, ball_geom["y"] + dy)
-
+    if ball_geom is not None:
+        ball = (ball_geom["x"] + dx, ball_geom["y"] + dy)
+    else:
+        ball = _place_ball(bounds, obstacles, agent_radius)
     start = _place_agent(bounds, obstacles, agent_radius, ball)
     return Scene(bounds, obstacles, ball, start, agent_radius)
 

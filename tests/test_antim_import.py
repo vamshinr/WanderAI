@@ -1,7 +1,12 @@
 import math
+import os
 from wanderai.antim_import import mjcf_to_scene
+from wanderai.environment import SceneSearchEnv, EnvConfig
+from wanderai.policies import OraclePolicy, run_episode
 from wanderai.occupancy import OccupancyGrid
 from wanderai.distance_field import DistanceField
+
+_REAL_EXPORT = os.path.join(os.path.dirname(__file__), "..", "examples", "gizmo_real_export.xml")
 
 SAMPLE = """
 <mujoco model="room">
@@ -36,6 +41,18 @@ def test_imported_scene_is_solvable():
     grid = OccupancyGrid.from_scene(s, 0.1)
     field = DistanceField.from_grid(grid, s.ball)
     assert math.isfinite(field.query(s.agent_start.x, s.agent_start.y))
+
+
+def test_real_gizmo_export_imports_and_solves():
+    # A real Gizmo MJCF: floor + wall shell as inline meshes, furniture as bodies
+    # with no inline geometry, and no ball. We must extract bounds + furniture
+    # obstacles, drop our own ball, and produce a solvable scene.
+    s = mjcf_to_scene(_REAL_EXPORT)
+    assert 4.5 < s.bounds.max_x < 6.0 and 4.5 < s.bounds.max_y < 6.0   # ~5.15 m room
+    assert len(s.obstacles) >= 3                                       # furniture captured
+    assert s.is_free(*s.ball) and s.is_free(s.agent_start.x, s.agent_start.y)
+    res = run_episode(SceneSearchEnv(s, config=EnvConfig(max_steps=400)), OraclePolicy())
+    assert res.success
 
 
 def test_red_sphere_preferred_over_others():
