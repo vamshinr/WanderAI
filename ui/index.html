@@ -81,7 +81,8 @@
         <button id="load3dTrain">Load 3D Train scene</button>
       </div>
       <p class="legend" style="margin:8px 0 0;">Loads a real Gizmo-exported room rendered
-         in MuJoCo. The agent navigates it from RGB+depth perception alone.</p>
+         in MuJoCo (RGB+depth shown above). The agent navigates the same symbolic
+         observation as 2D — a 3D room is no different to the policy.</p>
     </div>
 
     <div class="card">
@@ -119,8 +120,18 @@
         <button id="runTrained" class="trained">▶ Trained</button>
         <button id="stop" disabled>■ Stop</button>
       </div>
-      <p class="legend" style="margin:8px 0 0;"><b>Trained</b> = our RFT model
-         (wander-rft-v1). <b>LLM (base)</b> = untrained baseline. Both ~seconds/step.</p>
+      <div class="row" style="margin-top:8px;">
+        <label class="legend" for="modelSel" style="align-self:center;">Model:</label>
+        <select id="modelSel">
+          <option value="auto" selected>Auto — 2D: st1 · 3D: 3dmt-q (recommended)</option>
+          <option value="st1">st1 — 2D single-turn (proven, fast)</option>
+          <option value="2dmt-q">2dmt-q — 2D multi-turn (slow)</option>
+          <option value="3dmt-q">3dmt-q — 3D multi-turn</option>
+        </select>
+      </div>
+      <p class="legend" style="margin:8px 0 0;"><b>Trained</b> runs the model chosen
+         above — default <b>Auto</b> uses the proven <b>st1</b> for 2D rooms and
+         <b>3dmt-q</b> for 3D. <b>LLM (base)</b> = untrained baseline.</p>
       <p class="legend" style="margin:10px 0 0;">Keys: <kbd>↑</kbd> forward · <kbd>←</kbd>/<kbd>→</kbd> turn</p>
     </div>
 
@@ -148,7 +159,7 @@
 
 <script>
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-let scene = null, T = null;
+let scene = null, T = null, trail = [];   // trail = the agent's actual path this run
 
 async function post(path, body) {
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
@@ -179,6 +190,16 @@ function draw() {
     ctx.fillStyle = `rgba(${40+t*200|0},${60+t*90|0},${120-t*60|0},0.55)`;
     ctx.fillRect(px, py, f.cell_size*T.s+1, f.cell_size*T.s+1);
   }
+  // visited cells — the agent's episodic memory (the ground it has actually stepped
+  // in this run). The policy prefers NEW cells, so this shows it covering new ground.
+  const vis = scene.visited;
+  if (vis && vis.cells) {
+    ctx.fillStyle = 'rgba(63,185,80,0.20)';            // soft green = explored
+    for (const [cx, cy] of vis.cells) {
+      const [px, py] = T.toPx(cx*vis.cell, cy*vis.cell + vis.cell);
+      ctx.fillRect(px, py, vis.cell*T.s+1, vis.cell*T.s+1);
+    }
+  }
   // obstacles
   for (const o of scene.obstacles) {
     const [x0,y0] = T.toPx(o.min_x, o.max_y), [x1,y1] = T.toPx(o.max_x, o.min_y);
@@ -189,6 +210,18 @@ function draw() {
   const [bx,by] = T.toPx(scene.ball[0], scene.ball[1]);
   ctx.fillStyle = '#f85149'; ctx.beginPath(); ctx.arc(bx,by,7,0,7); ctx.fill();
   ctx.strokeStyle='#ffb3ad'; ctx.stroke();
+  // traversal trail — the actual path walked this run (amber). Connecting it shows
+  // the route; where it would re-cross green cells, you'd see it re-tread ground.
+  if (trail.length > 1) {
+    ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(240,200,60,0.92)';
+    ctx.beginPath();
+    const [s0x,s0y] = T.toPx(trail[0][0], trail[0][1]); ctx.moveTo(s0x, s0y);
+    for (let i=1;i<trail.length;i++){ const [px,py]=T.toPx(trail[i][0],trail[i][1]); ctx.lineTo(px,py); }
+    ctx.stroke();
+    const [stx,sty] = T.toPx(trail[0][0], trail[0][1]);   // start marker
+    ctx.fillStyle = '#3fb950'; ctx.beginPath(); ctx.arc(stx,sty,4,0,7); ctx.fill();
+  }
   // agent + FOV
   const a = scene.agent, [ax,ay] = T.toPx(a.x,a.y), fov = scene.fov, R = 1.6*T.s;
   ctx.strokeStyle = 'rgba(88,166,255,0.5)'; ctx.fillStyle='rgba(88,166,255,0.12)';
@@ -234,6 +267,7 @@ async function load(endpoint, body) {
   const data = await post(endpoint, body);
   if (data.error) { alert('Scene load failed: ' + data.error); return; }
   scene = data; T = makeTransform(scene.bounds);
+  trail = scene.agent ? [[scene.agent.x, scene.agent.y]] : [];   // fresh path
   $('reward').textContent='–'; $('cum').textContent='0.000';
   setStatus(scene.info, 0, false); updateFPV(scene.fpv); draw();
 }
@@ -244,6 +278,8 @@ async function step(action) {
   const d = await post('/api/step', {action});
   if (d.error) { alert(d.error); return null; }
   scene.agent = d.agent;
+  trail.push([d.agent.x, d.agent.y]);          // grow the path
+  if (d.visited) scene.visited = d.visited;    // refresh explored-cells memory
   $('reward').textContent = d.reward.toFixed(3);
   setStatus(d.info, d.cumulative, d.done); updateFPV(d.fpv); draw();
   return d;
@@ -263,7 +299,7 @@ async function run(policy) {
   RUN_BTNS.forEach(id => $(id).disabled = true);
   const delay = policy === 'llm' ? 0 : 150;     // LLM step is already slow (a round-trip)
   while (running) {
-    const a = await post('/api/policy_action', {policy});
+    const a = await post('/api/policy_action', {policy, model: $('modelSel').value});
     if (a.error) { alert(a.error); break; }
     const d = await step(a.action);
     if (!d || d.done) break;

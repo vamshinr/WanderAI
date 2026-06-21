@@ -45,12 +45,22 @@ def wander_to_rows(data: List[Dict[str, Any]]) -> List[EvaluationRow]:
 
 
 @evaluation_test(
-    input_dataset=["wander_lake/data/wander_dataset.jsonl"],
+    # Dataset is env-switchable so ONE evaluator trains either track (rows carry the
+    # scene: 2D procedural by default, or a 3D MuJoCo scene via `scene_3d`):
+    #   2D: (default)  3D: WANDER_DATASET_JSONL=wander_lake/data/wander_dataset_3d.jsonl
+    input_dataset=[os.environ.get("WANDER_DATASET_JSONL", "wander_lake/data/wander_dataset.jsonl")],
     dataset_adapter=wander_to_rows,
     completion_params=[{"temperature": 0.7, "max_tokens": 512, "model": _LOCAL_MODEL,
                         "extra_body": {"reasoning_effort": "low"}}],
     rollout_processor=MCPGymRolloutProcessor(),
-    passed_threshold=0.4,
+    # server_mode="shared": start ONE env server and reuse it across rollout calls.
+    # The default "per_run" starts a fresh server per call on a FIXED port (9700);
+    # on Fireworks the prior server is still bound when the next call/retry starts →
+    # "RuntimeError: Port 9700 already in use" crashes the rollout (the 25% failure).
+    rollout_processor_kwargs={"server_mode": "shared"},
+    # RFT is a reward PROVIDER: epoch 0 (untrained) legitimately has near-zero reward,
+    # so a positive pass/fail gate would fail every RFT job before it can learn. Disable it.
+    passed_threshold=-1000.0,
     num_runs=1,
     max_concurrent_rollouts=3,
     mode="pointwise",

@@ -32,19 +32,24 @@ LORA="${WANDER_LORA_RANK:-16}"
 # rlLoraTunable → clean 400 "not supported for reinforcement fine-tuning".
 # llama-v3-8b-instruct: rlLoraTunable=True, dep=None, trainingContextLength=131072,
 # same 8B Llama-instruct class as the original — the correct current base.
-BASE="${WANDER_BASE_MODEL:-accounts/fireworks/models/llama-v3-8b-instruct}"
+# Multi-turn RFT needs a TOOL-CALLING base: the model drives the env via the move()
+# tool. llama-v3-8b-instruct is rlLoraTunable but emits NO tool calls in the rollout
+# → every episode is 0 steps / reward 0.0 → job fails. qwen3-4b is rlLoraTunable AND
+# supportsTools AND non-deprecated AND <16B (free RFT tier) — the right multi-turn base.
+BASE="${WANDER_BASE_MODEL:-accounts/fireworks/models/qwen3-4b}"
+MAXTOK="${WANDER_MAX_TOKENS:-1536}"      # reasoning models need headroom for think + tool call
 
-echo "Launching v4 multi-turn RFT -> ${OUT}  (base=${BASE##*/}, epochs=${EPOCHS}, lora_rank=${LORA})"
+echo "Launching v4 multi-turn RFT -> ${OUT}  (base=${BASE##*/}, epochs=${EPOCHS}, lora_rank=${LORA}, max_tokens=${MAXTOK})"
 # NOTE: do NOT pass --dataset (it expects an existing dataset *id*, not a path).
 # ep infers the JSONL from the evaluator's input_dataset=[wander_lake/data/...],
 # runs it through the dataset_adapter, and uploads it as a proper dataset resource.
 exec ep create rft \
-  --evaluator test-wander-rl-wander-rl \
+  --evaluator "${WANDER_EVALUATOR:-test-wander-rl-wander-rl}" \
   --training-config-base-model "${BASE}" \
   --training-config-output-model "${OUT}" \
   --training-config-epochs "${EPOCHS}" \
   --training-config-lora-rank "${LORA}" \
-  --inference-parameters-max-output-tokens 256 \
+  --inference-parameters-max-output-tokens "${MAXTOK}" \
   --skip-validation \
   --force \
   --yes

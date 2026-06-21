@@ -188,12 +188,19 @@ class GuidedLLMPolicy:
       2. model has been turning in place for several steps and the way ahead is now
          open -> take the forward step it's avoiding (escape the spin);
       3. still spinning with no opening ahead -> turn toward the most-open and
-         least-explored side to scan for a way through.
+         least-explored side to scan for a way through;
+      4. anti-revisit (when anti_revisit=True): while the ball is not yet visible,
+         don't step back onto already-explored ground if a NEW open direction exists
+         -> steer to the frontier, so the agent covers new ground instead of looping.
     """
 
-    def __init__(self, model: str | None = None, spin_patience: int = 4):
-        self.llm = LLMPolicy(model=model, reasoning_effort=None, temperature=0.0)
+    def __init__(self, model: str | None = None, spin_patience: int = 4, anti_revisit: bool = True):
+        # The newer multi-turn models are reasoning models (qwen3): they emit a
+        # <think>…</think> block before the ACTION= line, so give enough output budget
+        # that the action isn't truncated (256 tokens cut it off -> silent MOVE_FORWARD).
+        self.llm = LLMPolicy(model=model, reasoning_effort=None, temperature=0.0, max_tokens=1024)
         self.spin_patience = spin_patience
+        self.anti_revisit = anti_revisit
         self._env = None
         self.recent: list = []
         self.last_error: str | None = None
@@ -233,6 +240,8 @@ class GuidedLLMPolicy:
             blocked_ahead = c["center"] < step         # a forward step would collide
             spinning = (len(self.recent) >= self.spin_patience
                         and all(a is not Action.MOVE_FORWARD for a in self.recent[-self.spin_patience:]))
+            ball_visible = "VISIBLE" in text
+            expl = self._explored(text)                # NEW vs explored, per direction
 
             if action == Action.MOVE_FORWARD and blocked_ahead:
                 action = Action.TURN_LEFT if c["left"] >= c["right"] else Action.TURN_RIGHT
@@ -241,8 +250,19 @@ class GuidedLLMPolicy:
                 action = Action.MOVE_FORWARD           # opening ahead -> commit to it
                 self.assists += 1
             elif spinning and blocked_ahead:
-                action = self._open_turn(c, self._explored(text))
+                action = self._open_turn(c, expl)
                 self.assists += 1
+            elif (self.anti_revisit and not ball_visible and action == Action.MOVE_FORWARD
+                  and expl.get("center") == "explored"):
+                # ANTI-REVISIT: while searching, don't step back onto ground we've already
+                # covered if an unexplored (NEW) open direction exists — steer to the
+                # frontier. Uses only the observation's NEW/explored flags + clearance.
+                fresh = [(s, c[s]) for s in ("left", "right")
+                         if expl.get(s) == "NEW" and c[s] >= step]
+                if fresh:
+                    side = max(fresh, key=lambda kv: kv[1])[0]
+                    action = Action.TURN_LEFT if side == "left" else Action.TURN_RIGHT
+                    self.assists += 1
 
         self.recent.append(action)
         return action

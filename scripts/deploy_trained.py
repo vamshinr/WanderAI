@@ -25,14 +25,22 @@ def main():
     if "--delete" in sys.argv:
         for d in fw.deployments.list(account_id=ACCT):
             if getattr(d, "base_model", "") == MODEL:
-                fw.deployments.delete(account_id=ACCT, deployment_id=d.name.split("/")[-1])
+                did = d.name.split("/")[-1]
+                try:
+                    fw.deployments.delete(account_id=ACCT, deployment_id=did)
+                except Exception as e:
+                    # recently-used deployments require ignore_checks
+                    fw.deployments.delete(account_id=ACCT, deployment_id=did, ignore_checks=True)
                 print("deleted deployment:", d.name)
         return
 
     print(">>> creating deployment for", MODEL)
-    # H100 (A100 hit a Fireworks INTERNAL error for this account).
+    # Accelerator configurable (WANDER_ACCELERATOR): H100 is the default but its pool
+    # can be capacity-exhausted ("no available capacity"); a 4B model fits on smaller
+    # GPUs (A100_80GB / L40S / A100_40GB) that often have separate, freer capacity.
+    accel = os.environ.get("WANDER_ACCELERATOR", "NVIDIA_H100_80GB")
     dep = fw.deployments.create(account_id=ACCT, base_model=MODEL,
-                                accelerator_type="NVIDIA_H100_80GB", accelerator_count=1)
+                                accelerator_type=accel, accelerator_count=1)
     dep_id = dep.name.split("/")[-1]
     print("    deployment:", dep.name)
 

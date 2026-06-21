@@ -12,6 +12,7 @@ import io
 import json
 import math
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import numpy as np
@@ -19,7 +20,7 @@ import numpy as np
 from wanderai.scene_gen import random_scene
 from wanderai.scene import default_scene
 from wanderai.environment import SceneSearchEnv, EnvConfig, Action
-from wanderai.observation import DEFAULT_FOV
+from wanderai.observation import DEFAULT_FOV, VISIT_CELL
 from wanderai.policies import OraclePolicy, RandomPolicy
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -58,22 +59,35 @@ def _fpv_payload(env) -> dict | None:
     rgb, depth = r.render_rgb_depth(env.scene, env.pose)
     return {"rgb": _png_data_url(rgb),
             "depth": _png_data_url(_depth_to_rgb(depth, r.max_depth))}
-# The RFT-trained policy. A LoRA addon on a dedicated deployment must be addressed
-# as "<model>#<deployment>" (the bare model id 404s). scripts/deploy_trained.py
-# writes the current address to .trained_model.txt; env var overrides that.
-def _trained_model() -> str:
-    env = os.environ.get("WANDER_TRAINED_MODEL")
-    if env:
-        return env
-    path = os.path.join(HERE, ".trained_model.txt")
+# Scene-aware trained policies: the 2D model drives the symbolic/2D rooms, the 3D
+# model the MuJoCo rooms — both multi-turn RFT models. A LoRA addon on a dedicated
+# deployment must be addressed as "<model>#<deployment>" (the bare id 404s). Override
+# per scene via env vars or .trained_model*.txt (so addresses can change without code).
+_ST1 = ("accounts/vamshinr5899-p0wudhc/models/wander-rft-st1"
+        "#accounts/vamshinr5899-p0wudhc/deployments/t67nt9dm")        # 2D single-turn (proven, fast)
+_M2DMTQ = ("accounts/vamshinr5899-p0wudhc/models/wander-rft-2dmt-q"
+           "#accounts/vamshinr5899-p0wudhc/deployments/y9y8cwq3")     # 2D multi-turn (slow reasoning)
+_M3DMTQ = ("accounts/vamshinr5899-p0wudhc/models/wander-rft-3dmt-q"
+           "#accounts/vamshinr5899-p0wudhc/deployments/bdl8xznb")     # 3D multi-turn
+
+
+def _model_from(env_var: str, filename: str, default: str) -> str:
+    v = os.environ.get(env_var)
+    if v:
+        return v
+    path = os.path.join(HERE, filename)
     if os.path.exists(path):
-        with open(path) as fh:
-            return fh.read().strip()
-    return ("accounts/vamshinr5899-p0wudhc/models/wander-rft-v1"
-            "#accounts/vamshinr5899-p0wudhc/deployments/ykcmxh3l")
+        txt = open(path).read().strip()
+        if txt:
+            return txt
+    return default
 
 
-TRAINED_MODEL = _trained_model()
+# Scene-aware defaults (what "auto" uses): st1 for 2D rooms, 3dmt-q for 3D rooms.
+TRAINED_MODEL_2D = _model_from("WANDER_TRAINED_MODEL", ".trained_model.txt", _ST1)
+TRAINED_MODEL_3D = _model_from("WANDER_TRAINED_MODEL_3D", ".trained_model_3d.txt", _M3DMTQ)
+# Explicit dropdown picks (key -> address); "auto" resolves scene-aware above.
+_MODEL_ADDR = {"st1": _ST1, "2dmt-q": _M2DMTQ, "3dmt-q": _M3DMTQ}
 
 
 def _field_payload(env: SceneSearchEnv):
@@ -83,6 +97,14 @@ def _field_payload(env: SceneSearchEnv):
             for row in f.dist]
     return {"cell_size": f.grid.cell_size, "origin": list(f.grid.origin),
             "nrows": f.grid.nrows, "ncols": f.grid.ncols, "data": data}
+
+
+def _visited_payload(env: SceneSearchEnv):
+    """The agent's episodic memory: the coarse cells it has actually stepped into
+    this run (env.visited). Lets the UI shade explored ground and show the agent
+    favouring NEW cells — the same memory the NEW/explored observation flags use."""
+    cells = sorted(env.visited) if env.visited else []
+    return {"cell": VISIT_CELL, "cells": [[cx, cy] for cx, cy in cells]}
 
 
 def _scene_payload(env: SceneSearchEnv, info: dict):
@@ -97,6 +119,7 @@ def _scene_payload(env: SceneSearchEnv, info: dict):
         "fov": DEFAULT_FOV,
         "field": _field_payload(env),
         "info": _info_payload(info),
+        "visited": _visited_payload(env),
         "fpv": fpv,
         "mode": "3d" if fpv else "2d",
     }
@@ -155,7 +178,7 @@ class Handler(BaseHTTPRequestHandler):
                     scene = default_scene()
                 else:
                     scene = random_scene(np.random.default_rng(int(seed)))
-                env = SceneSearchEnv(scene, config=EnvConfig(max_steps=400))
+                env = SceneSearchEnv(scene, config=EnvConfig(max_steps=3000))
                 _, info = env.reset()
                 st["env"] = env
                 st["cumulative"] = 0.0
@@ -174,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
                              else mjcf_to_scene(open(p).read()))
                 else:
                     return self._json({"error": "provide 'xml' or 'path'"}, 400)
-                env = SceneSearchEnv(scene, config=EnvConfig(max_steps=400))
+                env = SceneSearchEnv(scene, config=EnvConfig(max_steps=3000))
                 _, info = env.reset()
                 st["env"] = env
                 st["cumulative"] = 0.0
@@ -191,14 +214,22 @@ class Handler(BaseHTTPRequestHandler):
                         f"3D vision needs MuJoCo, missing in this interpreter ({e.name}). "
                         f"Install it for the python running serve.py:  "
                         f"{sys.executable} -m pip install mujoco")}, 500)
-                which = self._read_json().get("scene", "test")
+                body = self._read_json()
+                which = body.get("scene", "test")
+                # The policy only ever reads the symbolic text observation, so a 3D room
+                # is "just a 2D scene" to it. Default to perception="geometry": the SAME
+                # clean observation as 2D (accurate clearance/bearing), so the 2D-trained
+                # model navigates it well. The RGB+depth view still renders for display.
+                # "vision" (decode the obs from rendered pixels) is available but lossy —
+                # its noisy bearings made the model just walk forward.
+                percept = body.get("perception", "geometry")
                 if which not in _SCENES_3D:
                     return self._json({"error": f"unknown 3D scene '{which}'"}, 400)
                 if which not in _scene3d_cache:
                     _scene3d_cache[which] = load_mjcf_3d(_SCENES_3D[which])
                 scene3d, renderer = _scene3d_cache[which]
                 env = SceneSearchEnv(scene3d, renderer=renderer,
-                                     config=EnvConfig(max_steps=400, perception="vision"))
+                                     config=EnvConfig(max_steps=3000, perception=percept))
                 _, info = env.reset()
                 st["env"] = env
                 st["cumulative"] = 0.0
@@ -219,6 +250,7 @@ class Handler(BaseHTTPRequestHandler):
                     "cumulative": round(float(st["cumulative"]), 4),
                     "done": bool(done),
                     "info": _info_payload(info),
+                    "visited": _visited_payload(env),
                     "fpv": _fpv_payload(env),
                 })
 
@@ -226,7 +258,8 @@ class Handler(BaseHTTPRequestHandler):
                 env = st.get("env")
                 if env is None:
                     return self._json({"error": "call /api/reset first"}, 400)
-                name = self._read_json().get("policy", "oracle")
+                req = self._read_json()
+                name = req.get("policy", "oracle")
                 if name == "oracle":
                     policy = OraclePolicy()
                 elif name == "llm":
@@ -235,14 +268,23 @@ class Handler(BaseHTTPRequestHandler):
                         st["llm_policy"] = LLMPolicy()
                     policy = st["llm_policy"]
                 elif name == "trained":
-                    if st.get("trained_policy") is None:
+                    # Model choice from the UI dropdown. An explicit pick wins; "auto"
+                    # (or none) is scene-aware: 3D (MuJoCo renderer) -> 3D model, else 2D.
+                    key = req.get("model") or "auto"
+                    if key in _MODEL_ADDR:
+                        model = _MODEL_ADDR[key]
+                    else:
+                        is_3d = hasattr(getattr(env, "renderer", None), "render_rgb_depth")
+                        model = TRAINED_MODEL_3D if is_3d else TRAINED_MODEL_2D
+                    pol = st.get("trained_policy")
+                    if pol is None or getattr(pol, "_addr", None) != model:
                         from wanderai.llm_policy import GuidedLLMPolicy
-                        # The trained model drives from its egocentric view only; the
-                        # sole assist is CLEARANCE-based obstacle avoidance (no geodesic
-                        # field, no oracle, no hidden ball location). It genuinely
-                        # searches — it does not know where the ball is until it sees it.
-                        st["trained_policy"] = GuidedLLMPolicy(model=TRAINED_MODEL)
-                    policy = st["trained_policy"]
+                        # Drives from the egocentric view only; the sole assist is
+                        # clearance-based obstacle avoidance (no field/oracle/hidden ball).
+                        pol = GuidedLLMPolicy(model=model)
+                        pol._addr = model
+                        st["trained_policy"] = pol
+                    policy = pol
                 else:
                     policy = st["random_policy"]
                 action = int(policy.act(None, env))
@@ -269,16 +311,32 @@ def _load_dotenv(path=os.path.join(HERE, ".env")):
                 os.environ.setdefault(k.strip(), v.strip())
 
 
+def _reexec_with_mujoco_if_needed():
+    """3D vision scenes need MuJoCo, which lives in .venv-hud (python3.12), not the
+    system python. If MuJoCo isn't importable here but that venv has it, re-launch
+    serve.py under it so `python3 serve.py` works for BOTH 2D and 3D. The guard
+    (executable != venv python) prevents an infinite re-exec loop."""
+    import importlib.util
+    if importlib.util.find_spec("mujoco") is not None:
+        return
+    venv_py = os.path.join(HERE, ".venv-hud", "bin", "python")
+    if os.path.exists(venv_py) and os.path.realpath(sys.executable) != os.path.realpath(venv_py):
+        print("MuJoCo not in this interpreter → relaunching under .venv-hud for 3D support…", flush=True)
+        os.execv(venv_py, [venv_py, os.path.abspath(__file__), *sys.argv[1:]])
+
+
 def main():
+    _reexec_with_mujoco_if_needed()
     _load_dotenv()
     port = int(os.environ.get("PORT", "8000"))
+    host = os.environ.get("HOST", "127.0.0.1")    # set HOST=0.0.0.0 in a container (HF Space)
     # Single-threaded: the MuJoCo GL context is thread-affine (rendering from a
     # second thread segfaults on macOS), and a local single-user demo serialises
     # requests anyway. The 2D path is unaffected.
-    server = HTTPServer(("127.0.0.1", port), Handler)
+    server = HTTPServer((host, port), Handler)
     server.state = {"env": None, "cumulative": 0.0, "random_policy": RandomPolicy(),
                     "llm_policy": None}
-    print(f"WanderAI visualizer → http://localhost:{port}  (Ctrl+C to stop)")
+    print(f"WanderAI visualizer → http://{host}:{port}  (Ctrl+C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
