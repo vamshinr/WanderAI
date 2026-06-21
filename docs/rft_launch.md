@@ -78,8 +78,39 @@ FIREWORKS_MODEL=accounts/<account>/models/wander-rft-v1 \
 Success = **held-out SPL above the untrained baseline**, trending toward the
 oracle's 1.0. That is the scene-agnostic result — the whole project's payoff.
 
-## Status
+## As-built launch (single-step RFT) — what actually runs
 
-Reward, rollout, and GRPO signal: **built, tested, runnable now.** The Fireworks
-weight-update job is the remaining step, gated on account credits + wall-clock —
-not on any code we still need to write.
+We launch single-step (contextual-bandit) RFT — simpler and more robust than the
+multi-turn MCP path, and it teaches greedy geodesic descent (which the oracle
+proves solves the task):
+
+1. **Dataset** — `python scripts/build_rft_dataset.py` → `data/rft_train.jsonl`.
+   Each row = an observation prompt + a precomputed, direction-aware 0–1 reward
+   for each action (`wanderai/rft.py:single_step_reward`).
+2. **Evaluator** — `rft_eval/test_wander_rft.py`. Self-contained (reward lookup,
+   no `wanderai` import) so it ships to Fireworks trivially. Needs an (empty)
+   `requirements.txt` at repo root for `ep` to upload it.
+3. **Launch** — `python scripts/launch_rft.py`. Uploads the dataset, waits for the
+   evaluator to go ACTIVE, and creates the `reinforcement_fine_tuning_job` via the
+   Fireworks SDK directly.
+   - Base model: `accounts/fireworks/models/llama-v3p1-8b-instruct` (8B, open,
+     RL-tunable). Output: `wander-rft-v1`.
+   - **Why not `ep create rft`?** It uploads the evaluator fine but then 404-loops
+     on a buggy evaluator-status poll (builds the URL from the file path, not the
+     evaluator id). `scripts/launch_rft.py` does the same job creation correctly.
+
+## Status (verified 2026-06-20)
+
+Pipeline runs **end to end**: dataset uploaded ✓, evaluator built + ACTIVE ✓,
+job-creation request well-formed and accepted ✓. The job is blocked by one
+account-side gate: Fireworks returns `400 payment method is required` for RFT
+(GPU-hours), **even with credits on the account**.
+
+**To actually train:** add a payment method in Fireworks billing
+(https://app.fireworks.ai → Billing), then run `python scripts/launch_rft.py`.
+Training then runs on Fireworks (hours). After it finishes, deploy `wander-rft-v1`
+and evaluate held-out: `FIREWORKS_MODEL=accounts/<acct>/models/wander-rft-v1
+python -m wanderai.evaluate --llm --test 10`.
+
+Reward, dataset, evaluator, and launcher: **built, tested, and validated against
+the live API.** Only the payment-method toggle remains — not any code.

@@ -26,7 +26,9 @@ sponsor tools into the clean seams we left.
 | Browser visualizer | ✅ Done (`serve.py` + `ui/index.html`) — `python serve.py` |
 | Antim/Gizmo client + MJCF importer | ✅ Done (`antim.py`, `antim_import.py`) — UI "Load MJCF". Gizmo gen is slow/stalls; flow is pre-generate+cache+import |
 | A4 LLM text policy + held-out eval | ✅ Done (`llm_policy.py`, `evaluate.py`) — Fireworks `gpt-oss-20b`, "Run LLM" in UI. Untrained baseline wanders |
-| A5 RFT reward + GRPO signal | ✅ Built+verified (`rft.py`, `scripts/grpo_preview.py`, `docs/rft_launch.md`). Live signal: advantages spread 2.41 on real model. Weight-update job gated on Fireworks credits |
+| A5 RFT reward + GRPO signal | ✅ Built+verified (`rft.py`, `scripts/grpo_preview.py`). Live signal: advantages spread 2.41 |
+| Visited-areas episodic memory | ✅ In the observation (in-context per-room exploration map) |
+| A5 RFT training launch | ✅ Pipeline runs end-to-end (dataset+evaluator+`scripts/launch_rft.py`); model `llama-v3p1-8b-instruct`. **Blocked only on Fireworks payment method** (`400 payment method is required`, even with $501 credits). Add a card → `python scripts/launch_rft.py` |
 | MuJoCo renderer (vision) | ⬜ Phase B stretch |
 
 ## The pipeline (and where each sponsor tool plugs in)
