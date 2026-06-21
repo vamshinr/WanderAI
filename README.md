@@ -1,4 +1,3 @@
-<!-- HuggingFace Space metadata (used when this repo is deployed as a Docker Space) -->
 ---
 title: WanderAI
 emoji: 🔴
