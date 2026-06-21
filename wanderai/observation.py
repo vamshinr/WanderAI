@@ -28,20 +28,23 @@ def visit_key(x: float, y: float, cell: float = VISIT_CELL):
 
 
 def cast_ray(scene: Scene, x: float, y: float, angle: float, max_range: float) -> float:
-    """Distance from (x,y) along `angle` to the nearest blocking surface — an
-    obstacle face or a room wall — capped at max_range."""
+    """Distance from (x,y) along `angle` to the nearest surface the agent's BODY
+    would hit — capped at max_range. Obstacles are inflated by the agent radius
+    (the same configuration-space expansion the collision grid uses), so the
+    reported clearance matches where the agent actually collides. Without this the
+    thin center ray reads open space the agent's shoulders can't pass."""
     dx, dy = math.cos(angle), math.sin(angle)
     best = max_range
-    # Room boundary: the agent is inside, so the wall is the ray's exit distance.
+    # Room boundary: the agent's center collides when it exits the room (raw bounds).
     hit = ray_aabb(x, y, dx, dy, scene.bounds)
     if hit is not None:
         tmin, tmax = hit
         exit_t = tmax if tmin < 0 else tmin
         if 0 < exit_t < best:
             best = exit_t
-    # Obstacles: entry distance from outside.
+    # Obstacles inflated by the agent radius (entry distance from outside).
     for ob in scene.obstacles:
-        hit = ray_aabb(x, y, dx, dy, ob)
+        hit = ray_aabb(x, y, dx, dy, ob.inflate(scene.agent_radius))
         if hit is not None:
             tmin, tmax = hit
             entry_t = tmin if tmin > 0 else 0.0

@@ -11,3 +11,7 @@ rft = ["eval-protocol"]   # for launching the Fireworks RFT job (see docs/rft_la
 
 [tool.setuptools.packages.find]
 include = ["wanderai*"]
+
+[tool.pytest.ini_options]
+# wander-hud/ is a separate HUD package (runs in .venv-hud on py3.12); don't collect it here.
+testpaths = ["tests"]

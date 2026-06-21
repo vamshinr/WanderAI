@@ -28,6 +28,13 @@ def test_cast_ray_capped_at_max_range():
     assert cast_ray(s, 2, 2, 0.0, max_range=0.5) == 0.5
 
 
+def test_cast_ray_accounts_for_agent_radius():
+    # Obstacle front face at x=3; with a 0.2m agent radius the body hits at x=2.8.
+    s = Scene(AABB(0, 0, 4, 4), [AABB(3.0, 1.0, 3.5, 3.0)], (3.7, 3.7), Pose(2, 2, 0), 0.2)
+    # facing +x from (2,2): clearance should be 0.8 (to inflated face), not 1.0.
+    assert math.isclose(cast_ray(s, 2, 2, 0.0, max_range=10), 0.8, abs_tol=1e-6)
+
+
 def test_observe_ball_visible_ahead():
     # Ball straight ahead (+x), clear line of sight.
     s = Scene(AABB(0, 0, 6, 6), [], (5.0, 3.0), Pose(1.0, 3.0, 0.0), 0.0)
