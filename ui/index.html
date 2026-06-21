@@ -84,10 +84,13 @@
         <button data-act="2">⟳ Right</button>
       </div>
       <div class="row">
-        <button id="runOracle">▶ Run Oracle</button>
-        <button id="runRandom">▶ Run Random</button>
+        <button id="runOracle">▶ Oracle</button>
+        <button id="runRandom">▶ Random</button>
+        <button id="runLLM" class="primary">▶ LLM</button>
         <button id="stop" disabled>■ Stop</button>
       </div>
+      <p class="legend" style="margin:8px 0 0;">LLM = Fireworks model reading the
+         text observation (~seconds per step; untrained baseline until A5 RFT).</p>
       <p class="legend" style="margin:10px 0 0;">Keys: <kbd>↑</kbd> forward · <kbd>←</kbd>/<kbd>→</kbd> turn</p>
     </div>
 
@@ -115,7 +118,7 @@
 
 <script>
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-let scene = null, T = null, timer = null;
+let scene = null, T = null;
 
 async function post(path, body) {
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
@@ -205,18 +208,27 @@ async function step(action) {
   return d;
 }
 
+const RUN_BTNS = ['runOracle', 'runRandom', 'runLLM'];
+let running = false;
 function stop() {
-  if (timer) clearInterval(timer); timer=null;
-  $('stop').disabled = true; $('runOracle').disabled=false; $('runRandom').disabled=false;
+  running = false;
+  $('stop').disabled = true;
+  RUN_BTNS.forEach(id => $(id).disabled = false);
 }
 async function run(policy) {
-  if (!scene) return;
-  $('stop').disabled=false; $('runOracle').disabled=true; $('runRandom').disabled=true;
-  timer = setInterval(async () => {
+  if (!scene || running) return;
+  running = true;
+  $('stop').disabled = false;
+  RUN_BTNS.forEach(id => $(id).disabled = true);
+  const delay = policy === 'llm' ? 0 : 150;     // LLM step is already slow (a round-trip)
+  while (running) {
     const a = await post('/api/policy_action', {policy});
+    if (a.error) { alert(a.error); break; }
     const d = await step(a.action);
-    if (!d || d.done) stop();
-  }, 180);
+    if (!d || d.done) break;
+    if (delay) await new Promise(r => setTimeout(r, delay));
+  }
+  stop();
 }
 
 // wiring
@@ -225,6 +237,7 @@ $('defScene').onclick = () => newScene({scene:'default'});
 $('randSeed').onclick = () => { $('seed').value = Math.floor(Math.random()*1e6); newScene({seed:+$('seed').value}); };
 $('runOracle').onclick = () => run('oracle');
 $('runRandom').onclick = () => run('random');
+$('runLLM').onclick = () => run('llm');
 $('stop').onclick = stop;
 $('mjcfFile').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
 
@@ -146,7 +146,15 @@ class Handler(BaseHTTPRequestHandler):
                 if env is None:
                     return self._json({"error": "call /api/reset first"}, 400)
                 name = self._read_json().get("policy", "oracle")
-                policy = OraclePolicy() if name == "oracle" else st["random_policy"]
+                if name == "oracle":
+                    policy = OraclePolicy()
+                elif name == "llm":
+                    if st.get("llm_policy") is None:
+                        from wanderai.llm_policy import LLMPolicy
+                        st["llm_policy"] = LLMPolicy()
+                    policy = st["llm_policy"]
+                else:
+                    policy = st["random_policy"]
                 action = int(policy.act(None, env))
                 self._json({"action": action, "action_name": Action(action).name})
 
@@ -156,10 +164,24 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": f"{type(exc).__name__}: {exc}"}, 500)
 
 
+def _load_dotenv(path=os.path.join(HERE, ".env")):
+    """Load .env so 'Run LLM' finds FIREWORKS_API_KEY without manual export."""
+    if not os.path.exists(path):
+        return
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
 def main():
+    _load_dotenv()
     port = int(os.environ.get("PORT", "8000"))
-    server = HTTPServer(("127.0.0.1", port), Handler)
-    server.state = {"env": None, "cumulative": 0.0, "random_policy": RandomPolicy()}
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server.state = {"env": None, "cumulative": 0.0, "random_policy": RandomPolicy(),
+                    "llm_policy": None}
     print(f"WanderAI visualizer → http://localhost:{port}  (Ctrl+C to stop)")
     try:
         server.serve_forever()
