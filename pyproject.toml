@@ -7,6 +7,7 @@ dependencies = ["numpy", "certifi"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+rft = ["eval-protocol"]   # for launching the Fireworks RFT job (see docs/rft_launch.md)
 
 [tool.setuptools.packages.find]
 include = ["wanderai*"]
