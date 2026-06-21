@@ -105,3 +105,43 @@ class LLMPolicy:
             # fallback once masked a 404 as "the model always goes forward".
             self.last_error = f"{type(e).__name__}: {e}"
             return Action.MOVE_FORWARD
+
+
+class AssistedLLMPolicy:
+    """The trained LLM with a geodesic safety-net, so it never gets stuck and always
+    reaches the ball. When the model stalls (no geodesic progress) or ping-pongs
+    LEFT/RIGHT, we take ONE privileged geodesic-descent step to break the loop, then
+    hand control back to the model. Demo mode: guarantees convergence; the nudge
+    uses ground-truth geometry the model itself never sees."""
+
+    def __init__(self, model: str | None = None, stuck_patience: int = 2):
+        from .policies import OraclePolicy
+        self.llm = LLMPolicy(model=model, reasoning_effort=None, temperature=0.0)
+        self.oracle = OraclePolicy()
+        self.stuck_patience = stuck_patience
+        self._env = None
+        self.prev_d = None
+        self.stall = 0
+        self.recent: list = []
+        self.last_error: str | None = None
+        self.assists = 0
+
+    def act(self, obs, env) -> Action:
+        if env is not self._env:                      # new episode → reset state
+            self._env, self.prev_d, self.stall, self.recent, self.assists = env, None, 0, [], 0
+
+        d = env.field.query(env.pose.x, env.pose.y)
+        progressed = self.prev_d is None or d < self.prev_d - 1e-3
+        self.stall = 0 if progressed else self.stall + 1
+        self.prev_d = d
+        ping_pong = len(self.recent) >= 3 and all(a is not Action.MOVE_FORWARD for a in self.recent[-3:])
+
+        if self.stall >= self.stuck_patience or ping_pong:
+            action = self.oracle.act(obs, env)        # guaranteed-progress nudge
+            self.stall, self.last_error = 0, None
+            self.assists += 1
+        else:
+            action = self.llm.act(obs, env)
+            self.last_error = self.llm.last_error
+        self.recent.append(action)
+        return action

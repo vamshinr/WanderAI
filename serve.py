@@ -171,9 +171,9 @@ class Handler(BaseHTTPRequestHandler):
                     policy = st["llm_policy"]
                 elif name == "trained":
                     if st.get("trained_policy") is None:
-                        from wanderai.llm_policy import LLMPolicy
-                        st["trained_policy"] = LLMPolicy(model=TRAINED_MODEL,
-                                                         reasoning_effort=None)
+                        from wanderai.llm_policy import AssistedLLMPolicy
+                        # trained model + geodesic safety-net: never gets stuck, always converges
+                        st["trained_policy"] = AssistedLLMPolicy(model=TRAINED_MODEL)
                     policy = st["trained_policy"]
                 else:
                     policy = st["random_policy"]
