@@ -21,7 +21,7 @@ never seen and must **find a red ball** using only a first-person view — then
 generalize that search behavior to new rooms. Built for the HUD Frontier/RSI RL
 Environments Hackathon, using **Fireworks** (reinforcement fine-tuning + model
 serving), **HUD** (standardized evaluation), and **Antim Labs / Gizmo** (3D scene
-generation). Idea seeded by Antim Labs.
+generation).
 
 The agent never gets the map. Each step it sees a compact **symbolic observation**
 — whether the ball is in line of sight (and its bearing/distance), the open space to
