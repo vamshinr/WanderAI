@@ -10,8 +10,7 @@ pinned: false
 
 Team members:
 Aditya Gouroju
-Krish Garg
-Rohith K
+
 Vamshi Nagireddy
 
 # WanderAI
