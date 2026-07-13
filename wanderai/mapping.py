@@ -103,10 +103,12 @@ def obstacle_strip_from_depth(depth, *, fov_x: float, fov_y: float,
     z = depth
     u = u_tan[None, :] * z                    # lateral (+right), camera frame
     v = v_tan[:, None] * z                    # down, camera frame
-    # Camera pitched DOWN by pitch_rad: world height and horizontal-forward
-    # components of each point (validated against rendered floors in tests).
+    # Camera pitched DOWN by pitch_rad. The image-down axis in world terms is
+    # (-sin p forward, -cos p up), so a below-horizon pixel (+v) is CLOSER
+    # horizontally, not farther: fwd = z*cos - v*sin. (Validated against
+    # planes.world_point_cloud and rendered floors in tests.)
     height = eye_height - v * cos_p - z * sin_p
-    fwd = z * cos_p + v * sin_p               # horizontal distance ahead (+)
+    fwd = z * cos_p - v * sin_p               # horizontal distance ahead (+)
     rng = np.hypot(fwd, u)
     bearing = -np.arctan2(u, np.maximum(fwd, 1e-9))   # + = left
     valid = (np.isfinite(z) & (z > 1e-3) & (height > z_min) & (height < z_max)

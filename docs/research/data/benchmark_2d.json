@@ -3,187 +3,187 @@
   "benchmark": "2d-heldout",
   "rooms": 25,
   "episodes_per_room": 2,
-  "split_seed": 7,
+  "split_seed": 1234,
   "max_steps": 400,
   "env": {
    "step_size": 0.25,
    "turn_deg": 30,
    "success_radius": 0.3
   },
-  "git": "dd89ab9",
-  "timestamp": "2026-07-13 22:55:23 UTC"
+  "git": "6fb4331",
+  "timestamp": "2026-07-13 22:57:15 UTC"
  },
  "results": [
   {
    "policy": "random",
    "episodes": 50,
-   "success_rate": 0.1,
+   "success_rate": 0.12,
    "success_ci": [
-    0.02,
-    0.18
+    0.04,
+    0.22
    ],
-   "spl": 0.06618770260493022,
+   "spl": 0.06267203596075528,
    "spl_ci": [
-    0.012757324005689786,
-    0.13317684587443804
+    0.013944982846748007,
+    0.12261284440059347
    ],
-   "soft_spl": 0.10393489650012791,
-   "dts": 4.239927787660849,
-   "mean_steps_success": 132.2,
-   "mean_collisions": 50.34,
-   "mean_coverage": 29.66
+   "soft_spl": 0.09870691822406241,
+   "dts": 3.9880393788854422,
+   "mean_steps_success": 167.66666666666666,
+   "mean_collisions": 51.04,
+   "mean_coverage": 29.1
   },
   {
    "policy": "fbe-nearest",
    "episodes": 50,
-   "success_rate": 0.76,
+   "success_rate": 0.72,
    "success_ci": [
-    0.64,
-    0.88
+    0.5995000000000008,
+    0.84
    ],
-   "spl": 0.5069404845675897,
+   "spl": 0.552489468706645,
    "spl_ci": [
-    0.40970175275428583,
-    0.6031649777887853
+    0.43986889881579033,
+    0.6626890477512519
    ],
-   "soft_spl": 0.5103166420050438,
-   "dts": 1.3821619577296138,
-   "mean_steps_success": 65.63157894736842,
-   "mean_collisions": 0.44,
-   "mean_coverage": 15.64
+   "soft_spl": 0.5601561262277659,
+   "dts": 1.1945215555646316,
+   "mean_steps_success": 40.72222222222222,
+   "mean_collisions": 0.6,
+   "mean_coverage": 13.6
   },
   {
    "policy": "fbe",
-   "episodes": 50,
-   "success_rate": 0.88,
-   "success_ci": [
-    0.78,
-    0.96
-   ],
-   "spl": 0.6121023875303497,
-   "spl_ci": [
-    0.5326253736467993,
-    0.6905170874108602
-   ],
-   "soft_spl": 0.6148504770168657,
-   "dts": 0.47668767790203553,
-   "mean_steps_success": 52.72727272727273,
-   "mean_collisions": 0.4,
-   "mean_coverage": 15.76
-  },
-  {
-   "policy": "fbe-mem2000",
-   "episodes": 50,
-   "success_rate": 0.88,
-   "success_ci": [
-    0.78,
-    0.96
-   ],
-   "spl": 0.6121023875303497,
-   "spl_ci": [
-    0.5326253736467993,
-    0.6905170874108602
-   ],
-   "soft_spl": 0.6148504770168657,
-   "dts": 0.47668767790203553,
-   "mean_steps_success": 52.72727272727273,
-   "mean_collisions": 0.4,
-   "mean_coverage": 15.76
-  },
-  {
-   "policy": "fbe-mem500",
-   "episodes": 50,
-   "success_rate": 0.88,
-   "success_ci": [
-    0.78,
-    0.96
-   ],
-   "spl": 0.6124521992538585,
-   "spl_ci": [
-    0.5334192279919012,
-    0.6904422513314462
-   ],
-   "soft_spl": 0.6202504228027841,
-   "dts": 0.43580928741893227,
-   "mean_steps_success": 53.04545454545455,
-   "mean_collisions": 0.4,
-   "mean_coverage": 15.88
-  },
-  {
-   "policy": "fbe-mem150",
-   "episodes": 50,
-   "success_rate": 0.76,
-   "success_ci": [
-    0.64,
-    0.88
-   ],
-   "spl": 0.5449036388823919,
-   "spl_ci": [
-    0.44489740242035475,
-    0.6392804516993743
-   ],
-   "soft_spl": 0.5692831254943662,
-   "dts": 1.0219472872727196,
-   "mean_steps_success": 45.21052631578947,
-   "mean_collisions": 0.2,
-   "mean_coverage": 14.12
-  },
-  {
-   "policy": "rl-local",
    "episodes": 50,
    "success_rate": 0.84,
    "success_ci": [
     0.74,
     0.94
    ],
-   "spl": 0.6801183187474064,
+   "spl": 0.6013216784190568,
    "spl_ci": [
-    0.5780822125280602,
-    0.7710271998885064
+    0.4970451442477422,
+    0.7024782417996678
    ],
-   "soft_spl": 0.6560538922811715,
-   "dts": 0.7833247352252621,
-   "mean_steps_success": 142.38095238095238,
-   "mean_collisions": 0.28,
-   "mean_coverage": 14.04
+   "soft_spl": 0.5886777121586892,
+   "dts": 0.6438365202228351,
+   "mean_steps_success": 54.095238095238095,
+   "mean_collisions": 0.68,
+   "mean_coverage": 15.0
+  },
+  {
+   "policy": "fbe-mem2000",
+   "episodes": 50,
+   "success_rate": 0.84,
+   "success_ci": [
+    0.74,
+    0.94
+   ],
+   "spl": 0.6013216784190568,
+   "spl_ci": [
+    0.4970451442477422,
+    0.7024782417996678
+   ],
+   "soft_spl": 0.5886777121586892,
+   "dts": 0.6438365202228351,
+   "mean_steps_success": 54.095238095238095,
+   "mean_collisions": 0.68,
+   "mean_coverage": 15.0
+  },
+  {
+   "policy": "fbe-mem500",
+   "episodes": 50,
+   "success_rate": 0.84,
+   "success_ci": [
+    0.74,
+    0.94
+   ],
+   "spl": 0.5949959254136362,
+   "spl_ci": [
+    0.4918330300081528,
+    0.6969480845744886
+   ],
+   "soft_spl": 0.5812905371481336,
+   "dts": 0.6503269746123234,
+   "mean_steps_success": 56.142857142857146,
+   "mean_collisions": 0.76,
+   "mean_coverage": 15.0
+  },
+  {
+   "policy": "fbe-mem150",
+   "episodes": 50,
+   "success_rate": 0.64,
+   "success_ci": [
+    0.5,
+    0.76
+   ],
+   "spl": 0.5050326782694925,
+   "spl_ci": [
+    0.38685584922467814,
+    0.623506285527018
+   ],
+   "soft_spl": 0.5335511081806881,
+   "dts": 1.4570738057883088,
+   "mean_steps_success": 36.0625,
+   "mean_collisions": 0.44,
+   "mean_coverage": 12.6
+  },
+  {
+   "policy": "rl-local",
+   "episodes": 50,
+   "success_rate": 0.8,
+   "success_ci": [
+    0.68,
+    0.9
+   ],
+   "spl": 0.7028241884190863,
+   "spl_ci": [
+    0.5983886164460278,
+    0.8061341307454085
+   ],
+   "soft_spl": 0.695520741527907,
+   "dts": 1.023030902271323,
+   "mean_steps_success": 83.45,
+   "mean_collisions": 0.52,
+   "mean_coverage": 13.12
   },
   {
    "policy": "rl-local-hint",
    "episodes": 50,
-   "success_rate": 0.56,
+   "success_rate": 0.6,
    "success_ci": [
-    0.42,
-    0.7
+    0.46,
+    0.7204999999999973
    ],
-   "spl": 0.5187803198170432,
+   "spl": 0.5517575350252705,
    "spl_ci": [
-    0.390443214882592,
-    0.6429107456791062
+    0.4270078087009002,
+    0.6722892037068494
    ],
-   "soft_spl": 0.6217629344788032,
-   "dts": 1.5115460702521901,
-   "mean_steps_success": 52.142857142857146,
+   "soft_spl": 0.7346869500969175,
+   "dts": 0.8214068160505881,
+   "mean_steps_success": 51.733333333333334,
    "mean_collisions": 0.36,
-   "mean_coverage": 10.8
+   "mean_coverage": 11.2
   },
   {
    "policy": "oracle (privileged)",
    "episodes": 50,
-   "success_rate": 1.0,
+   "success_rate": 0.96,
    "success_ci": [
-    1.0,
+    0.9,
     1.0
    ],
-   "spl": 0.9989463185179573,
+   "spl": 0.9511033223873296,
    "spl_ci": [
-    0.9973657962948931,
-    1.0
+    0.8907933726831779,
+    0.9955516611936648
    ],
-   "soft_spl": 0.9534497090119944,
-   "dts": 0.0,
-   "mean_steps_success": 27.0,
+   "soft_spl": 0.9061047230242513,
+   "dts": 0.06901959173408664,
+   "mean_steps_success": 25.208333333333332,
    "mean_collisions": 0.0,
-   "mean_coverage": 10.72
+   "mean_coverage": 10.48
   }
  ]
 }

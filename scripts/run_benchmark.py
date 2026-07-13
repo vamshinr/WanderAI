@@ -55,7 +55,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--rooms", type=int, default=25, help="held-out rooms")
     ap.add_argument("--episodes", type=int, default=2, help="episodes per room")
-    ap.add_argument("--seed", type=int, default=7, help="scene-split seed")
+    ap.add_argument("--seed", type=int, default=1234,
+                    help="scene-split seed. MUST differ from any RL training "
+                         "split seed: make_split(0, N, seed=s) yields the same "
+                         "stream as make_split(n_train, ., seed=s), so reusing "
+                         "a training seed leaks training rooms into the "
+                         "'held-out' set for the rl-local rows.")
     ap.add_argument("--max-steps", type=int, default=400)
     ap.add_argument("--rl-weights", default="", help="rl_local weights JSON")
     ap.add_argument("--rl-hint-weights", default="",
