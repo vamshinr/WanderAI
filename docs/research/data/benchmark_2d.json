@@ -10,8 +10,8 @@
    "turn_deg": 30,
    "success_radius": 0.3
   },
-  "git": "aeef912",
-  "timestamp": "2026-07-13 22:20:25 UTC"
+  "git": "dd89ab9",
+  "timestamp": "2026-07-13 22:55:23 UTC"
  },
  "results": [
   {
@@ -36,97 +36,135 @@
   {
    "policy": "fbe-nearest",
    "episodes": 50,
-   "success_rate": 0.68,
+   "success_rate": 0.76,
    "success_ci": [
-    0.54,
-    0.8
+    0.64,
+    0.88
    ],
-   "spl": 0.46922778703717666,
+   "spl": 0.5069404845675897,
    "spl_ci": [
-    0.3619259928988035,
-    0.5738850694623422
+    0.40970175275428583,
+    0.6031649777887853
    ],
-   "soft_spl": 0.46594720607722273,
-   "dts": 1.7440435901120201,
-   "mean_steps_success": 62.588235294117645,
-   "mean_collisions": 0.56,
+   "soft_spl": 0.5103166420050438,
+   "dts": 1.3821619577296138,
+   "mean_steps_success": 65.63157894736842,
+   "mean_collisions": 0.44,
    "mean_coverage": 15.64
   },
   {
    "policy": "fbe",
    "episodes": 50,
-   "success_rate": 0.8,
+   "success_rate": 0.88,
    "success_ci": [
-    0.68,
-    0.9
+    0.78,
+    0.96
    ],
-   "spl": 0.5582474193924879,
+   "spl": 0.6121023875303497,
    "spl_ci": [
-    0.4662394801504742,
-    0.6537812679757629
+    0.5326253736467993,
+    0.6905170874108602
    ],
-   "soft_spl": 0.542586160103274,
-   "dts": 1.0999348434914984,
-   "mean_steps_success": 55.15,
-   "mean_collisions": 0.52,
-   "mean_coverage": 15.24
+   "soft_spl": 0.6148504770168657,
+   "dts": 0.47668767790203553,
+   "mean_steps_success": 52.72727272727273,
+   "mean_collisions": 0.4,
+   "mean_coverage": 15.76
   },
   {
    "policy": "fbe-mem2000",
    "episodes": 50,
-   "success_rate": 0.8,
+   "success_rate": 0.88,
    "success_ci": [
-    0.68,
-    0.9
+    0.78,
+    0.96
    ],
-   "spl": 0.5582474193924879,
+   "spl": 0.6121023875303497,
    "spl_ci": [
-    0.4662394801504742,
-    0.6537812679757629
+    0.5326253736467993,
+    0.6905170874108602
    ],
-   "soft_spl": 0.542586160103274,
-   "dts": 1.0999348434914984,
-   "mean_steps_success": 55.15,
-   "mean_collisions": 0.52,
-   "mean_coverage": 15.24
+   "soft_spl": 0.6148504770168657,
+   "dts": 0.47668767790203553,
+   "mean_steps_success": 52.72727272727273,
+   "mean_collisions": 0.4,
+   "mean_coverage": 15.76
   },
   {
    "policy": "fbe-mem500",
    "episodes": 50,
-   "success_rate": 0.8,
+   "success_rate": 0.88,
    "success_ci": [
-    0.68,
-    0.9
+    0.78,
+    0.96
    ],
-   "spl": 0.5582474193924879,
+   "spl": 0.6124521992538585,
    "spl_ci": [
-    0.4662394801504742,
-    0.6537812679757629
+    0.5334192279919012,
+    0.6904422513314462
    ],
-   "soft_spl": 0.542586160103274,
-   "dts": 1.0999348434914984,
-   "mean_steps_success": 55.15,
-   "mean_collisions": 0.52,
-   "mean_coverage": 15.24
+   "soft_spl": 0.6202504228027841,
+   "dts": 0.43580928741893227,
+   "mean_steps_success": 53.04545454545455,
+   "mean_collisions": 0.4,
+   "mean_coverage": 15.88
   },
   {
    "policy": "fbe-mem150",
    "episodes": 50,
-   "success_rate": 0.6,
+   "success_rate": 0.76,
    "success_ci": [
-    0.46,
-    0.72
+    0.64,
+    0.88
    ],
-   "spl": 0.48618490928835945,
+   "spl": 0.5449036388823919,
    "spl_ci": [
-    0.378391186600576,
-    0.5967718835174257
+    0.44489740242035475,
+    0.6392804516993743
    ],
-   "soft_spl": 0.4816309239572513,
-   "dts": 2.2658709679796614,
-   "mean_steps_success": 37.93333333333333,
-   "mean_collisions": 0.48,
-   "mean_coverage": 13.24
+   "soft_spl": 0.5692831254943662,
+   "dts": 1.0219472872727196,
+   "mean_steps_success": 45.21052631578947,
+   "mean_collisions": 0.2,
+   "mean_coverage": 14.12
+  },
+  {
+   "policy": "rl-local",
+   "episodes": 50,
+   "success_rate": 0.84,
+   "success_ci": [
+    0.74,
+    0.94
+   ],
+   "spl": 0.6801183187474064,
+   "spl_ci": [
+    0.5780822125280602,
+    0.7710271998885064
+   ],
+   "soft_spl": 0.6560538922811715,
+   "dts": 0.7833247352252621,
+   "mean_steps_success": 142.38095238095238,
+   "mean_collisions": 0.28,
+   "mean_coverage": 14.04
+  },
+  {
+   "policy": "rl-local-hint",
+   "episodes": 50,
+   "success_rate": 0.56,
+   "success_ci": [
+    0.42,
+    0.7
+   ],
+   "spl": 0.5187803198170432,
+   "spl_ci": [
+    0.390443214882592,
+    0.6429107456791062
+   ],
+   "soft_spl": 0.6217629344788032,
+   "dts": 1.5115460702521901,
+   "mean_steps_success": 52.142857142857146,
+   "mean_collisions": 0.36,
+   "mean_coverage": 10.8
   },
   {
    "policy": "oracle (privileged)",
