@@ -1,8 +1,8 @@
-**3D matched procedural rooms (10 held-out, split seed 42): geometry vs pixels-only sensing. Depth-strip MAE 0.12 m**
+**3D matched procedural rooms (20 held-out, split seed 42): geometry vs pixels-only sensing. Depth-strip MAE 0.16 m**
 
 | Policy | Episodes | Success rate [95% CI] | SPL [95% CI] | SoftSPL | DTS (m) | Steps (succ.) | Collisions | Coverage |
 |---|---|---|---|---|---|---|---|---|
-| fbe-geometry | 10 | 0.900 [0.700, 1.000] | 0.666 [0.472, 0.826] | 0.642 | 0.33 | 44 | 0.1 | 16.1 |
-| fbe-vision (pixels only) | 10 | 0.600 [0.300, 0.900] | 0.524 [0.254, 0.782] | 0.566 | 1.51 | 30 | 2.3 | 11.5 |
-| random | 10 | 0.100 [0.000, 0.300] | 0.077 [0.000, 0.232] | 0.127 | 3.39 | 74 | 46.8 | 28.7 |
-| oracle (privileged) | 10 | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] | 0.955 | 0.00 | 26 | 0.0 | 10.1 |
+| fbe-geometry | 20 | 0.900 [0.750, 1.000] | 0.598 [0.464, 0.734] | 0.575 | 0.23 | 52 | 0.1 | 16.6 |
+| fbe-vision (pixels only) | 20 | 0.700 [0.500, 0.900] | 0.543 [0.362, 0.719] | 0.546 | 1.16 | 40 | 2.5 | 12.9 |
+| random | 20 | 0.050 [0.000, 0.150] | 0.039 [0.000, 0.116] | 0.079 | 3.91 | 74 | 49.2 | 30.4 |
+| oracle (privileged) | 20 | 1.000 [1.000, 1.000] | 0.981 [0.944, 1.000] | 0.931 | 0.00 | 26 | 0.0 | 10.0 |

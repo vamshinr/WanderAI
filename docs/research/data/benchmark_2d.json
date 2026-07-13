@@ -1,8 +1,8 @@
 {
  "meta": {
   "benchmark": "2d-heldout",
-  "rooms": 25,
-  "episodes_per_room": 2,
+  "rooms": 50,
+  "episodes_per_room": 1,
   "split_seed": 1234,
   "max_steps": 400,
   "env": {
@@ -10,8 +10,8 @@
    "turn_deg": 30,
    "success_radius": 0.3
   },
-  "git": "6fb4331",
-  "timestamp": "2026-07-13 22:57:15 UTC"
+  "git": "fadeebd",
+  "timestamp": "2026-07-13 23:04:08 UTC"
  },
  "results": [
   {
@@ -22,73 +22,73 @@
     0.04,
     0.22
    ],
-   "spl": 0.06267203596075528,
+   "spl": 0.04274253522899096,
    "spl_ci": [
-    0.013944982846748007,
-    0.12261284440059347
+    0.009532935207563303,
+    0.08972838041312241
    ],
-   "soft_spl": 0.09870691822406241,
-   "dts": 3.9880393788854422,
-   "mean_steps_success": 167.66666666666666,
-   "mean_collisions": 51.04,
-   "mean_coverage": 29.1
+   "soft_spl": 0.07425596721588937,
+   "dts": 3.851467351737852,
+   "mean_steps_success": 245.66666666666666,
+   "mean_collisions": 51.74,
+   "mean_coverage": 30.06
   },
   {
    "policy": "fbe-nearest",
    "episodes": 50,
    "success_rate": 0.72,
    "success_ci": [
-    0.5995000000000008,
+    0.6,
     0.84
    ],
-   "spl": 0.552489468706645,
+   "spl": 0.522140995004326,
    "spl_ci": [
-    0.43986889881579033,
-    0.6626890477512519
+    0.42137813201842494,
+    0.6285714412401832
    ],
-   "soft_spl": 0.5601561262277659,
-   "dts": 1.1945215555646316,
-   "mean_steps_success": 40.72222222222222,
-   "mean_collisions": 0.6,
-   "mean_coverage": 13.6
+   "soft_spl": 0.5305600599673389,
+   "dts": 1.3353054013844714,
+   "mean_steps_success": 43.72222222222222,
+   "mean_collisions": 0.46,
+   "mean_coverage": 13.82
   },
   {
    "policy": "fbe",
    "episodes": 50,
-   "success_rate": 0.84,
+   "success_rate": 0.86,
    "success_ci": [
-    0.74,
+    0.76,
     0.94
    ],
-   "spl": 0.6013216784190568,
+   "spl": 0.6126869310994424,
    "spl_ci": [
-    0.4970451442477422,
-    0.7024782417996678
+    0.5253809210600175,
+    0.7011621058645078
    ],
-   "soft_spl": 0.5886777121586892,
-   "dts": 0.6438365202228351,
-   "mean_steps_success": 54.095238095238095,
-   "mean_collisions": 0.68,
-   "mean_coverage": 15.0
+   "soft_spl": 0.5921303292488509,
+   "dts": 0.6702693901299608,
+   "mean_steps_success": 48.7906976744186,
+   "mean_collisions": 0.42,
+   "mean_coverage": 14.44
   },
   {
    "policy": "fbe-mem2000",
    "episodes": 50,
-   "success_rate": 0.84,
+   "success_rate": 0.86,
    "success_ci": [
-    0.74,
+    0.76,
     0.94
    ],
-   "spl": 0.6013216784190568,
+   "spl": 0.6126869310994424,
    "spl_ci": [
-    0.4970451442477422,
-    0.7024782417996678
+    0.5253809210600175,
+    0.7011621058645078
    ],
-   "soft_spl": 0.5886777121586892,
-   "dts": 0.6438365202228351,
-   "mean_steps_success": 54.095238095238095,
-   "mean_collisions": 0.68,
-   "mean_coverage": 15.0
+   "soft_spl": 0.5921303292488509,
+   "dts": 0.6702693901299608,
+   "mean_steps_success": 48.7906976744186,
+   "mean_collisions": 0.42,
+   "mean_coverage": 14.44
   },
   {
    "policy": "fbe-mem500",
@@ -98,92 +98,92 @@
     0.74,
     0.94
    ],
-   "spl": 0.5949959254136362,
+   "spl": 0.6002275924097213,
    "spl_ci": [
-    0.4918330300081528,
-    0.6969480845744886
+    0.5081702447609305,
+    0.691531597461358
    ],
-   "soft_spl": 0.5812905371481336,
-   "dts": 0.6503269746123234,
-   "mean_steps_success": 56.142857142857146,
-   "mean_collisions": 0.76,
-   "mean_coverage": 15.0
+   "soft_spl": 0.5794319930547894,
+   "dts": 0.8421909730461381,
+   "mean_steps_success": 48.54761904761905,
+   "mean_collisions": 0.54,
+   "mean_coverage": 14.08
   },
   {
    "policy": "fbe-mem150",
    "episodes": 50,
-   "success_rate": 0.64,
+   "success_rate": 0.72,
    "success_ci": [
-    0.5,
-    0.76
+    0.6,
+    0.84
    ],
-   "spl": 0.5050326782694925,
+   "spl": 0.5427548285548158,
    "spl_ci": [
-    0.38685584922467814,
-    0.623506285527018
+    0.43835518776219934,
+    0.6520808145445224
    ],
-   "soft_spl": 0.5335511081806881,
-   "dts": 1.4570738057883088,
-   "mean_steps_success": 36.0625,
-   "mean_collisions": 0.44,
-   "mean_coverage": 12.6
+   "soft_spl": 0.5587913581096459,
+   "dts": 1.1376863894726652,
+   "mean_steps_success": 42.638888888888886,
+   "mean_collisions": 0.4,
+   "mean_coverage": 13.54
   },
   {
    "policy": "rl-local",
    "episodes": 50,
-   "success_rate": 0.8,
+   "success_rate": 0.72,
    "success_ci": [
-    0.68,
-    0.9
+    0.6,
+    0.84
    ],
-   "spl": 0.7028241884190863,
+   "spl": 0.635578736722164,
    "spl_ci": [
-    0.5983886164460278,
-    0.8061341307454085
+    0.516145740027304,
+    0.7485450266513562
    ],
-   "soft_spl": 0.695520741527907,
-   "dts": 1.023030902271323,
-   "mean_steps_success": 83.45,
-   "mean_collisions": 0.52,
-   "mean_coverage": 13.12
+   "soft_spl": 0.6266567348655938,
+   "dts": 1.6379507934932898,
+   "mean_steps_success": 80.27777777777777,
+   "mean_collisions": 0.5,
+   "mean_coverage": 12.3
   },
   {
    "policy": "rl-local-hint",
    "episodes": 50,
-   "success_rate": 0.6,
+   "success_rate": 0.62,
    "success_ci": [
-    0.46,
-    0.7204999999999973
+    0.5,
+    0.74
    ],
-   "spl": 0.5517575350252705,
+   "spl": 0.5740517803366019,
    "spl_ci": [
-    0.4270078087009002,
-    0.6722892037068494
+    0.44948090987896805,
+    0.6918161863467753
    ],
-   "soft_spl": 0.7346869500969175,
-   "dts": 0.8214068160505881,
-   "mean_steps_success": 51.733333333333334,
-   "mean_collisions": 0.36,
-   "mean_coverage": 11.2
+   "soft_spl": 0.7134675229602843,
+   "dts": 0.8771385960196215,
+   "mean_steps_success": 59.29032258064516,
+   "mean_collisions": 0.4,
+   "mean_coverage": 10.84
   },
   {
    "policy": "oracle (privileged)",
    "episodes": 50,
-   "success_rate": 0.96,
+   "success_rate": 0.98,
    "success_ci": [
-    0.9,
+    0.94,
     1.0
    ],
-   "spl": 0.9511033223873296,
+   "spl": 0.9657394336791278,
    "spl_ci": [
-    0.8907933726831779,
-    0.9955516611936648
+    0.915704375632796,
+    0.9994180627335758
    ],
-   "soft_spl": 0.9061047230242513,
-   "dts": 0.06901959173408664,
-   "mean_steps_success": 25.208333333333332,
+   "soft_spl": 0.9212548087315823,
+   "dts": 0.03450979586704332,
+   "mean_steps_success": 25.836734693877553,
    "mean_collisions": 0.0,
-   "mean_coverage": 10.48
+   "mean_coverage": 10.36
   }
  ]
 }
