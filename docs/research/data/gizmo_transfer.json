@@ -1,25 +1,12 @@
 {
  "scene": "wander_lake/scene_3d_train.xml (Gizmo export)",
- "note": "furniture is position-only in Gizmo exports: the visual world contains real meshes the 2D collision world lacks, so pixels-only mapping perceives (real) clutter that does not block the (proxy) collision world - the documented sim-artifact for transfer",
+ "note": "Gizmo furniture is position-only (meshes external): the visual world contains real clutter the 2D collision world lacks, so pixels-only mapping perceives obstacles that do not exist in the collision substrate. The strip disagreement below quantifies that mismatch \u2014 it is a property of the export format, not of the perception pipeline (see the matched-room benchmark for the controlled comparison).",
  "bounds": [
   20.4,
   15.4
  ],
  "obstacles_2d": 3,
- "strip_mae_vs_2d_import_m": 2.750202246838446,
- "planes": {
-  "n": 6,
-  "kinds": [
-   "floor",
-   "wall",
-   "wall",
-   "other",
-   "wall",
-   "surface"
-  ],
-  "floor_height_err_m": 0.10000008784055667,
-  "n_navigable_px": 9795
- },
+ "visual_vs_collision_strip_mad_m": 2.932823288395761,
  "episodes": {
   "oracle": {
    "success": true,
@@ -63,22 +50,22 @@
     "success": false,
     "steps": 1500,
     "spl_term": 0.0,
-    "collisions": 5,
-    "coverage": 4
+    "collisions": 4,
+    "coverage": 18
    },
    {
     "success": false,
     "steps": 1500,
     "spl_term": 0.0,
     "collisions": 4,
-    "coverage": 5
+    "coverage": 18
    },
    {
     "success": false,
     "steps": 1500,
     "spl_term": 0.0,
     "collisions": 3,
-    "coverage": 4
+    "coverage": 18
    }
   ]
  }
