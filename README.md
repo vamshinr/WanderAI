@@ -221,10 +221,28 @@ which can render. The matching HUD task is `find-ball-3d-sym-*` (`wander-hud/tas
 | `wanderai/environment.py` | `SceneSearchEnv` (gym-style `reset`/`step`, reward) |
 | `wanderai/policies.py` | `RandomPolicy`, privileged `OraclePolicy`, `run_episode` |
 | `wanderai/llm_policy.py` | `LLMPolicy` (Fireworks) + honest `GuidedLLMPolicy` |
+| `wanderai/mapping.py` | **Bounded-memory** log-odds occupancy mapping from the agent's own sensing; frontier extraction; A* on the agent's own map |
+| `wanderai/frontier_policy.py` | Frontier-based exploration baseline (Yamauchi 1997) — no model, no privileged info |
+| `wanderai/scene_mjcf.py` | Compile any procedural `Scene` into a **matched** MuJoCo room (visual == collision world) |
+| `wanderai/planes.py` | RANSAC planar-surface extraction from depth → floor/wall/actionable surfaces + navigable space |
+| `wanderai/vision_policy.py` | `VLMPolicy` (image-prompted VLM actions) + pixels-only frontier policy |
+| `wanderai/rl_local.py` | Local episodic RL (GRPO-style REINFORCE, numpy) over the symbolic obs, optional in-context map hint |
+| `wanderai/benchmark.py` | Seeded benchmark harness: SR/SPL/SoftSPL/DTS + bootstrap CIs |
 | `serve.py` + `ui/index.html` | Zero-dependency browser visualizer |
 | `wander-hud/` | HUD environment + eval suite; `run_native.py` HUD-evals our tool-calling models |
 | `wander_lake/` | Multi-turn (episodic) RFT env (eval-protocol McpGym); `scene_3d` loads a real 3D scene |
 | `scripts/launch_rft_v4.sh` / `deploy_trained.py` | Launch episodic RFT (qwen3-4b) / deploy a model (any accelerator) |
+
+## Research benchmarks (fully local, reproducible)
+
+All numbers in `docs/research/` are produced by these commands — no API keys
+needed (see `docs/research/REPORT.md` for the full study):
+
+```bash
+python3 scripts/run_benchmark.py --rooms 25 --episodes 2 --seed 7      # 2D held-out suite
+MUJOCO_GL=osmesa python3 scripts/run_benchmark_3d.py --rooms 10        # 3D pixels-only suite
+python3 scripts/train_local_rl.py --iters 400 --hint                   # local episodic RL
+```
 
 ## The visualizer (`serve.py`)
 

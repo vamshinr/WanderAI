@@ -40,11 +40,13 @@ def build_policies(args):
     if args.rl_weights and os.path.exists(args.rl_weights):
         from wanderai.rl_local import TrainedLocalPolicy
         policies["rl-local"] = (
-            lambda seed, path=args.rl_weights: TrainedLocalPolicy.load(path))
+            lambda seed, path=args.rl_weights:
+            TrainedLocalPolicy.from_file(path))
     if args.rl_hint_weights and os.path.exists(args.rl_hint_weights):
         from wanderai.rl_local import TrainedLocalPolicy
         policies["rl-local-hint"] = (
-            lambda seed, path=args.rl_hint_weights: TrainedLocalPolicy.load(path))
+            lambda seed, path=args.rl_hint_weights:
+            TrainedLocalPolicy.from_file(path, use_hint=True))
     policies["oracle (privileged)"] = lambda seed: OraclePolicy()
     return policies
 

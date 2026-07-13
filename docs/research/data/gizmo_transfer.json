@@ -1,0 +1,76 @@
+{
+ "scene": "wander_lake/scene_3d_train.xml (Gizmo export)",
+ "bounds": [
+  20.4,
+  15.4
+ ],
+ "obstacles_2d": 3,
+ "strip_mae_vs_2d_import_m": 2.750202246838446,
+ "planes": {
+  "n": 6,
+  "kinds": [
+   "floor",
+   "wall",
+   "wall",
+   "other",
+   "wall",
+   "surface"
+  ],
+  "floor_height_err_m": 0.10000008784055667,
+  "n_navigable_px": 9795
+ },
+ "episodes": {
+  "oracle": {
+   "success": true,
+   "steps": 87,
+   "spl_term": 1.0,
+   "collisions": 0
+  },
+  "random": {
+   "success": false,
+   "steps": 500,
+   "spl_term": 0.0,
+   "collisions": 61
+  },
+  "fbe_geometry": [
+   {
+    "success": false,
+    "steps": 500,
+    "spl_term": 0.0,
+    "collisions": 0
+   },
+   {
+    "success": false,
+    "steps": 500,
+    "spl_term": 0.0,
+    "collisions": 0
+   },
+   {
+    "success": false,
+    "steps": 500,
+    "spl_term": 0.0,
+    "collisions": 0
+   }
+  ],
+  "fbe_vision": [
+   {
+    "success": false,
+    "steps": 500,
+    "spl_term": 0.0,
+    "collisions": 4
+   },
+   {
+    "success": false,
+    "steps": 500,
+    "spl_term": 0.0,
+    "collisions": 4
+   },
+   {
+    "success": false,
+    "steps": 500,
+    "spl_term": 0.0,
+    "collisions": 3
+   }
+  ]
+ }
+}

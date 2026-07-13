@@ -50,6 +50,11 @@ def test_featurize_visible_hint_and_determinism():
 
 def test_policynet_roundtrip_preserves_argmax():
     net = PolicyNet(hidden=16, seed=5)
+    # The output layer starts at zero (uniform policy); give it real weights so
+    # the round-trip check exercises non-trivial argmax decisions.
+    wrng = np.random.default_rng(9)
+    net.W2 = wrng.normal(0, 0.5, net.W2.shape)
+    net.b2 = wrng.normal(0, 0.5, net.b2.shape)
     clone = PolicyNet.from_dict(net.to_dict())
     rng = np.random.default_rng(0)
     for _ in range(20):

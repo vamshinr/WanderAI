@@ -191,10 +191,16 @@ class EgoMap:
                 if t >= rng - step * 0.5:
                     break
                 self._bump(self.key(pose.x + t * dx, pose.y + t * dy), L_FREE)
-            # A hit closer than one cell can't be disambiguated from the agent's
-            # own cell — registering it walls the robot into its own map.
-            if hit and rng > self.cell_size:
-                self._bump(self.key(pose.x + rng * dx, pose.y + rng * dy), L_OCC)
+            # Pad the hit slightly INTO the surface so the occupied mark lands in
+            # the wall's body, not on the boundary cell the agent may share.
+            # Only the agent's own cell is exempt (it is free by definition) —
+            # dropping close hits entirely leaves near walls unmapped, and the
+            # planner then draws line-of-sight straight through them.
+            if hit:
+                t = rng + 0.3 * self.cell_size
+                hit_key = self.key(pose.x + t * dx, pose.y + t * dy)
+                if hit_key != self.key(pose.x, pose.y):
+                    self._bump(hit_key, L_OCC)
         # The agent's own cell is free by definition (robot footprint clearing) —
         # assert it strongly so stray near-wall hits can't accumulate over it.
         self._bump(self.key(pose.x, pose.y), 3 * L_FREE)
@@ -261,6 +267,23 @@ class EgoMap:
         clusters.sort(key=lambda c: -c.size)
         return clusters
 
+    def _nearest_open(self, ij, radius: int = 3):
+        """Closest non-occupied cell within `radius` (ring search), or None."""
+        for r in range(1, radius + 1):
+            best, best_d = None, math.inf
+            for di in range(-r, r + 1):
+                for dj in range(-r, r + 1):
+                    if max(abs(di), abs(dj)) != r:
+                        continue
+                    nb = (ij[0] + di, ij[1] + dj)
+                    if not self.is_occupied(nb):
+                        d = di * di + dj * dj
+                        if d < best_d:
+                            best, best_d = nb, d
+            if best is not None:
+                return best
+        return None
+
     def line_of_sight(self, a_xy, b_xy) -> bool:
         """No occupied cell on the segment a→b (sampled at half-cell steps) —
         used for string-pulling smoothed path following."""
@@ -284,7 +307,11 @@ class EgoMap:
         start = self.key(*start_xy)
         goal = self.key(*goal_xy)
         if self.is_occupied(goal):
-            return None
+            # A frontier centroid can round into the wall it hugs — snap to the
+            # nearest non-occupied cell instead of refusing to plan.
+            goal = self._nearest_open(goal, radius=3)
+            if goal is None:
+                return None
         # The agent physically occupies the start — its immediate ring is
         # traversable no matter what stray hits say, or a near-wall robot can
         # never plan its way out of its own (mis)map.

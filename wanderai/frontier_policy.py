@@ -125,30 +125,26 @@ class FrontierPolicy:
         lo = self.map.log_odds(self.map.key(nx, ny))
         return lo is None or lo <= 2.0
 
-    def _choose_frontier(self, pose: Pose):
+    def _ranked_frontiers(self, pose: Pose):
         clusters = self.map.frontiers()
-        if not clusters:
-            return None
         if self.cfg.selection == "nearest":
-            return min(clusters, key=lambda c: math.hypot(
-                c.centroid[0] - pose.x, c.centroid[1] - pose.y)).centroid
-        best, best_score = None, -math.inf
-        for c in clusters:
-            d = math.hypot(c.centroid[0] - pose.x, c.centroid[1] - pose.y)
-            score = c.size / (1.0 + d)          # cost–utility trade-off
-            if score > best_score:
-                best, best_score = c.centroid, score
-        return best
+            return sorted(clusters, key=lambda c: math.hypot(
+                c.centroid[0] - pose.x, c.centroid[1] - pose.y))
+        # Cost–utility trade-off: big clusters, discounted by travel distance.
+        return sorted(clusters, key=lambda c: -(c.size / (1.0 + math.hypot(
+            c.centroid[0] - pose.x, c.centroid[1] - pose.y))))
 
     def _replan(self, pose: Pose):
+        """Try frontiers best-first until one is actually plannable — the top
+        cluster alone can be unreachable on the current map (e.g. sensed
+        through a doorway the map hasn't connected yet)."""
         self.plan = []
-        target = self._choose_frontier(pose)
-        if target is None:
-            return
-        path = self.map.plan_path((pose.x, pose.y), target)
-        if path:
-            self.plan = path
         self.steps_since_plan = 0
+        for cluster in self._ranked_frontiers(pose)[:8]:
+            path = self.map.plan_path((pose.x, pose.y), cluster.centroid)
+            if path:
+                self.plan = path
+                return
 
     # --- policy interface ---
     def act(self, obs, env: SceneSearchEnv) -> Action:

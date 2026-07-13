@@ -75,7 +75,12 @@ def featurize(obs: Observation, last_action: int | None,
 
 
 class PolicyNet:
-    """Tiny numpy MLP: FEATURE_DIM -> hidden (tanh) -> 3 action logits."""
+    """Tiny numpy MLP: FEATURE_DIM -> hidden (tanh) -> 3 action logits.
+
+    Hidden layer is He-initialized (seeded); the OUTPUT layer starts at zero so
+    the initial policy is exactly uniform — the standard policy-gradient choice:
+    maximal exploration at step 0 and no arbitrary initial action bias that
+    training would first have to unlearn."""
 
     def __init__(self, hidden: int = 32, seed: int = 0):
         rng = np.random.default_rng(seed)
@@ -84,7 +89,7 @@ class PolicyNet:
         self.W1 = rng.normal(0.0, math.sqrt(2.0 / FEATURE_DIM),
                              (hidden, FEATURE_DIM))
         self.b1 = np.zeros(hidden)
-        self.W2 = rng.normal(0.0, math.sqrt(2.0 / hidden), (N_ACTIONS, hidden))
+        self.W2 = np.zeros((N_ACTIONS, hidden))
         self.b2 = np.zeros(N_ACTIONS)
 
     # --- forward ---
@@ -277,8 +282,26 @@ class ReinforceTrainer:
 
 class TrainedLocalPolicy:
     """Deployment policy: `act(obs, env) -> Action` via argmax over the trained
-    net. Self-resets its episode state (last action, own EgoMap) on env.steps==0,
-    like every other WanderAI policy. Reads only the honest channels."""
+    net, wrapped in the same two unstuck reflexes `FrontierPolicy` uses —
+    necessary because a deterministic argmax of a reactive net can enter limit
+    cycles (spin forever, ram a wall) that the stochastic training policy never
+    exhibits:
+
+      * collision inference — a MOVE_FORWARD that did not change the pose marks
+        the intended destination cell blocked; forward is masked while it would
+        re-enter a blocked cell (or the depth clearance shows no room);
+      * anti-dither — after a full circle of consecutive turns, force one step
+        forward when it is safe.
+
+    Both reflexes read only the agent's own pose history and its observation, so
+    the honesty contract holds. `train_and_eval` applies the IDENTICAL wrapper to
+    the untrained and the trained weights, so the reported improvement is
+    attributable to learning, not to the reflexes.
+
+    Self-resets its episode state (last action, blocked cells, own EgoMap) on
+    env.steps==0, like every other WanderAI policy."""
+
+    BLOCK_CELL = 0.25    # resolution of the collision-inferred blocked-cell set
 
     def __init__(self, net: PolicyNet | dict, use_hint: bool = False):
         self.net = net if isinstance(net, PolicyNet) else PolicyNet.from_dict(net)
@@ -292,19 +315,51 @@ class TrainedLocalPolicy:
 
     def _reset(self):
         self.last_action: int | None = None
+        self.last_pose = None
+        self.blocked: set = set()
+        self.consecutive_turns = 0
         self.map = EgoMap() if self.use_hint else None
+
+    def _ahead_cell(self, pose, step_size: float) -> tuple[int, int]:
+        ax = pose.x + step_size * math.cos(pose.heading)
+        ay = pose.y + step_size * math.sin(pose.heading)
+        return (int(math.floor(ax / self.BLOCK_CELL)),
+                int(math.floor(ay / self.BLOCK_CELL)))
 
     def act(self, obs, env: SceneSearchEnv) -> Action:
         if env.steps == 0:
             self._reset()
-        sym = observe(env.scene, env.pose, history=env.history,
-                      visited=env.visited)
+        pose, ecfg = env.pose, env.config
+
+        # Collision inference: we asked to move and the pose did not change.
+        if (self.last_action == int(Action.MOVE_FORWARD)
+                and self.last_pose is not None
+                and math.hypot(pose.x - self.last_pose.x,
+                               pose.y - self.last_pose.y) < 1e-9):
+            self.blocked.add(self._ahead_cell(self.last_pose, ecfg.step_size))
+
+        sym = observe(env.scene, pose, history=env.history, visited=env.visited)
         hint = None
         if self.map is not None:
-            self.map.update(env.pose, depth_strip(env.scene, env.pose))
-            hint = frontier_hint(self.map, env.pose)
-        a = self.net.argmax(featurize(sym, self.last_action, hint))
-        self.last_action = a
+            self.map.update(pose, depth_strip(env.scene, pose))
+            hint = frontier_hint(self.map, pose)
+
+        forward_ok = (self._ahead_cell(pose, ecfg.step_size) not in self.blocked
+                      and sym.clearance["center"] > ecfg.step_size * 1.2)
+        z = self.net.logits(featurize(sym, self.last_action, hint))
+        if not forward_ok:
+            z = z.copy()
+            z[int(Action.MOVE_FORWARD)] = -1e9
+        a = int(np.argmax(z))
+        if a != int(Action.MOVE_FORWARD):
+            self.consecutive_turns += 1
+            if (self.consecutive_turns > int(2 * math.pi / ecfg.turn)
+                    and forward_ok):
+                a = int(Action.MOVE_FORWARD)
+        if a == int(Action.MOVE_FORWARD):
+            self.consecutive_turns = 0
+
+        self.last_pose, self.last_action = pose, a
         return Action(a)
 
 

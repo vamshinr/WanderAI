@@ -24,8 +24,8 @@
    "wall_vertical_err_deg_mean": 0.0026914908447139172,
    "navigable_precision_mean": 0.9635553081550898
   },
-  "git": "aeef912",
-  "timestamp": "2026-07-13 22:23:28 UTC"
+  "git": "081f7e6",
+  "timestamp": "2026-07-13 22:49:01 UTC"
  },
  "results": [
   {
@@ -36,35 +36,35 @@
     0.7,
     1.0
    ],
-   "spl": 0.7006392250276573,
+   "spl": 0.6657616264907751,
    "spl_ci": [
-    0.5133389545428481,
-    0.8695877205985693
+    0.47166408506827123,
+    0.8260495695122102
    ],
-   "soft_spl": 0.6588767132893487,
-   "dts": 0.7205562855513056,
-   "mean_steps_success": 36.22222222222222,
+   "soft_spl": 0.6417491009497458,
+   "dts": 0.32541866890221904,
+   "mean_steps_success": 44.111111111111114,
    "mean_collisions": 0.1,
-   "mean_coverage": 14.2
+   "mean_coverage": 16.1
   },
   {
    "policy": "fbe-vision (pixels only)",
    "episodes": 10,
-   "success_rate": 0.8,
+   "success_rate": 0.7,
    "success_ci": [
-    0.5,
-    1.0
+    0.4,
+    0.9
    ],
-   "spl": 0.6390983807008856,
+   "spl": 0.5984977698423635,
    "spl_ci": [
-    0.39849776984236346,
-    0.8618529029250217
+    0.33147825512846024,
+    0.8366448669173417
    ],
-   "soft_spl": 0.6736045063124816,
-   "dts": 0.938543744191476,
-   "mean_steps_success": 32.5,
-   "mean_collisions": 1.6,
-   "mean_coverage": 12.0
+   "soft_spl": 0.6446903843186742,
+   "dts": 1.0550728539529755,
+   "mean_steps_success": 30.857142857142858,
+   "mean_collisions": 1.8,
+   "mean_coverage": 12.1
   },
   {
    "policy": "random",
