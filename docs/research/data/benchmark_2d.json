@@ -1,0 +1,151 @@
+{
+ "meta": {
+  "benchmark": "2d-heldout",
+  "rooms": 25,
+  "episodes_per_room": 2,
+  "split_seed": 7,
+  "max_steps": 400,
+  "env": {
+   "step_size": 0.25,
+   "turn_deg": 30,
+   "success_radius": 0.3
+  },
+  "git": "aeef912",
+  "timestamp": "2026-07-13 22:20:25 UTC"
+ },
+ "results": [
+  {
+   "policy": "random",
+   "episodes": 50,
+   "success_rate": 0.1,
+   "success_ci": [
+    0.02,
+    0.18
+   ],
+   "spl": 0.06618770260493022,
+   "spl_ci": [
+    0.012757324005689786,
+    0.13317684587443804
+   ],
+   "soft_spl": 0.10393489650012791,
+   "dts": 4.239927787660849,
+   "mean_steps_success": 132.2,
+   "mean_collisions": 50.34,
+   "mean_coverage": 29.66
+  },
+  {
+   "policy": "fbe-nearest",
+   "episodes": 50,
+   "success_rate": 0.68,
+   "success_ci": [
+    0.54,
+    0.8
+   ],
+   "spl": 0.46922778703717666,
+   "spl_ci": [
+    0.3619259928988035,
+    0.5738850694623422
+   ],
+   "soft_spl": 0.46594720607722273,
+   "dts": 1.7440435901120201,
+   "mean_steps_success": 62.588235294117645,
+   "mean_collisions": 0.56,
+   "mean_coverage": 15.64
+  },
+  {
+   "policy": "fbe",
+   "episodes": 50,
+   "success_rate": 0.8,
+   "success_ci": [
+    0.68,
+    0.9
+   ],
+   "spl": 0.5582474193924879,
+   "spl_ci": [
+    0.4662394801504742,
+    0.6537812679757629
+   ],
+   "soft_spl": 0.542586160103274,
+   "dts": 1.0999348434914984,
+   "mean_steps_success": 55.15,
+   "mean_collisions": 0.52,
+   "mean_coverage": 15.24
+  },
+  {
+   "policy": "fbe-mem2000",
+   "episodes": 50,
+   "success_rate": 0.8,
+   "success_ci": [
+    0.68,
+    0.9
+   ],
+   "spl": 0.5582474193924879,
+   "spl_ci": [
+    0.4662394801504742,
+    0.6537812679757629
+   ],
+   "soft_spl": 0.542586160103274,
+   "dts": 1.0999348434914984,
+   "mean_steps_success": 55.15,
+   "mean_collisions": 0.52,
+   "mean_coverage": 15.24
+  },
+  {
+   "policy": "fbe-mem500",
+   "episodes": 50,
+   "success_rate": 0.8,
+   "success_ci": [
+    0.68,
+    0.9
+   ],
+   "spl": 0.5582474193924879,
+   "spl_ci": [
+    0.4662394801504742,
+    0.6537812679757629
+   ],
+   "soft_spl": 0.542586160103274,
+   "dts": 1.0999348434914984,
+   "mean_steps_success": 55.15,
+   "mean_collisions": 0.52,
+   "mean_coverage": 15.24
+  },
+  {
+   "policy": "fbe-mem150",
+   "episodes": 50,
+   "success_rate": 0.6,
+   "success_ci": [
+    0.46,
+    0.72
+   ],
+   "spl": 0.48618490928835945,
+   "spl_ci": [
+    0.378391186600576,
+    0.5967718835174257
+   ],
+   "soft_spl": 0.4816309239572513,
+   "dts": 2.2658709679796614,
+   "mean_steps_success": 37.93333333333333,
+   "mean_collisions": 0.48,
+   "mean_coverage": 13.24
+  },
+  {
+   "policy": "oracle (privileged)",
+   "episodes": 50,
+   "success_rate": 1.0,
+   "success_ci": [
+    1.0,
+    1.0
+   ],
+   "spl": 0.9989463185179573,
+   "spl_ci": [
+    0.9973657962948931,
+    1.0
+   ],
+   "soft_spl": 0.9534497090119944,
+   "dts": 0.0,
+   "mean_steps_success": 27.0,
+   "mean_collisions": 0.0,
+   "mean_coverage": 10.72
+  }
+ ]
+}

@@ -138,6 +138,21 @@ class MuJoCoRenderer(Renderer):
         self._renderer.update_scene(self.data, camera=cam)
         return self._renderer.render().copy()
 
+    def close(self) -> None:
+        """Free the GL context. Batch evaluations over many rooms MUST close
+        each room's renderer before creating the next — stale OSMesa/EGL
+        contexts corrupt every subsequent renderer's output (NaN frames)."""
+        with self._lock:
+            if self._renderer is not None:
+                self._renderer.close()
+                self._renderer = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
     # --- Renderer interface ---
     def render(self, scene: Scene, pose: Pose) -> np.ndarray:
         """Egocentric RGB (HxWx3 uint8) — satisfies the `Renderer` ABC."""

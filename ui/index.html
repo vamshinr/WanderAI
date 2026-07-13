@@ -116,6 +116,7 @@
       <div class="row">
         <button id="runOracle">▶ Oracle</button>
         <button id="runRandom">▶ Random</button>
+        <button id="runFrontier">▶ Frontier</button>
         <button id="runLLM">▶ LLM (base)</button>
         <button id="runTrained" class="trained">▶ Trained</button>
         <button id="stop" disabled>■ Stop</button>
@@ -131,7 +132,9 @@
       </div>
       <p class="legend" style="margin:8px 0 0;"><b>Trained</b> runs the model chosen
          above — default <b>Auto</b> uses the proven <b>st1</b> for 2D rooms and
-         <b>3dmt-q</b> for 3D. <b>LLM (base)</b> = untrained baseline.</p>
+         <b>3dmt-q</b> for 3D. <b>LLM (base)</b> = untrained baseline.
+         <b>Frontier</b> = classical map-building exploration (Yamauchi 1997) —
+         no model, no privileged info; the strongest zero-training baseline.</p>
       <p class="legend" style="margin:10px 0 0;">Keys: <kbd>↑</kbd> forward · <kbd>←</kbd>/<kbd>→</kbd> turn</p>
     </div>
 
@@ -285,7 +288,7 @@ async function step(action) {
   return d;
 }
 
-const RUN_BTNS = ['runOracle', 'runRandom', 'runLLM', 'runTrained'];
+const RUN_BTNS = ['runOracle', 'runRandom', 'runFrontier', 'runLLM', 'runTrained'];
 let running = false;
 function stop() {
   running = false;
@@ -314,6 +317,7 @@ $('defScene').onclick = () => newScene({scene:'default'});
 $('randSeed').onclick = () => { $('seed').value = Math.floor(Math.random()*1e6); newScene({seed:+$('seed').value}); };
 $('runOracle').onclick = () => run('oracle');
 $('runRandom').onclick = () => run('random');
+$('runFrontier').onclick = () => run('frontier');
 $('runLLM').onclick = () => run('llm');
 $('runTrained').onclick = () => run('trained');
 $('stop').onclick = stop;

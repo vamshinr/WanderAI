@@ -239,3 +239,6 @@ data/
 # deployed-model address written by deploy_trained.py
 .trained_model.txt
 .DS_Store
+
+# Research benchmark data is versioned (reproducible evidence for the report)
+!docs/research/data/

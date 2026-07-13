@@ -1,0 +1,108 @@
+{
+ "meta": {
+  "benchmark": "3d-matched-procedural",
+  "rooms": 10,
+  "split_seed": 42,
+  "max_steps": 400,
+  "strip_mae_mean_m": 0.1421638154744544,
+  "strip_mae_per_room": [
+   0.113,
+   0.218,
+   0.037,
+   0.082,
+   0.073,
+   0.196,
+   0.145,
+   0.123,
+   0.23,
+   0.204
+  ],
+  "planes": {
+   "rooms_evaluated": 10,
+   "floor_detected_in": 8,
+   "floor_height_mae_m": 1.0179846331794701e-07,
+   "wall_vertical_err_deg_mean": 0.0026914908447139172,
+   "navigable_precision_mean": 0.9635553081550898
+  },
+  "git": "aeef912",
+  "timestamp": "2026-07-13 22:23:28 UTC"
+ },
+ "results": [
+  {
+   "policy": "fbe-geometry",
+   "episodes": 10,
+   "success_rate": 0.9,
+   "success_ci": [
+    0.7,
+    1.0
+   ],
+   "spl": 0.7006392250276573,
+   "spl_ci": [
+    0.5133389545428481,
+    0.8695877205985693
+   ],
+   "soft_spl": 0.6588767132893487,
+   "dts": 0.7205562855513056,
+   "mean_steps_success": 36.22222222222222,
+   "mean_collisions": 0.1,
+   "mean_coverage": 14.2
+  },
+  {
+   "policy": "fbe-vision (pixels only)",
+   "episodes": 10,
+   "success_rate": 0.8,
+   "success_ci": [
+    0.5,
+    1.0
+   ],
+   "spl": 0.6390983807008856,
+   "spl_ci": [
+    0.39849776984236346,
+    0.8618529029250217
+   ],
+   "soft_spl": 0.6736045063124816,
+   "dts": 0.938543744191476,
+   "mean_steps_success": 32.5,
+   "mean_collisions": 1.6,
+   "mean_coverage": 12.0
+  },
+  {
+   "policy": "random",
+   "episodes": 10,
+   "success_rate": 0.1,
+   "success_ci": [
+    0.0,
+    0.3
+   ],
+   "spl": 0.07731612865627714,
+   "spl_ci": [
+    0.0,
+    0.23194838596883144
+   ],
+   "soft_spl": 0.1272704613813788,
+   "dts": 3.393090620512913,
+   "mean_steps_success": 74.0,
+   "mean_collisions": 46.8,
+   "mean_coverage": 28.7
+  },
+  {
+   "policy": "oracle (privileged)",
+   "episodes": 10,
+   "success_rate": 1.0,
+   "success_ci": [
+    1.0,
+    1.0
+   ],
+   "spl": 1.0,
+   "spl_ci": [
+    1.0,
+    1.0
+   ],
+   "soft_spl": 0.95505929415657,
+   "dts": 0.0,
+   "mean_steps_success": 26.3,
+   "mean_collisions": 0.0,
+   "mean_coverage": 10.1
+  }
+ ]
+}

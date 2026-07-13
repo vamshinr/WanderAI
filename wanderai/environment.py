@@ -76,8 +76,12 @@ class SceneSearchEnv:
         return observation_text(obs)
 
     def reset(self):
-        self.grid = OccupancyGrid.from_scene(self.scene, self.config.cell_size)
-        self.field = DistanceField.from_grid(self.grid, self.scene.ball)
+        # Scene is a frozen dataclass, so the grid and field are pure functions of
+        # (scene, cell_size) — reuse them across resets (training runs thousands
+        # of episodes per scene; rebuilding the wavefront each reset dominates).
+        if self.grid is None:
+            self.grid = OccupancyGrid.from_scene(self.scene, self.config.cell_size)
+            self.field = DistanceField.from_grid(self.grid, self.scene.ball)
         self.pose = self.scene.agent_start
         self.steps = 0
         self.path_length = 0.0

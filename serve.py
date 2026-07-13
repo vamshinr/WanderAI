@@ -267,6 +267,14 @@ class Handler(BaseHTTPRequestHandler):
                         from wanderai.llm_policy import LLMPolicy
                         st["llm_policy"] = LLMPolicy()
                     policy = st["llm_policy"]
+                elif name == "frontier":
+                    # Classical frontier exploration (Yamauchi 1997): builds its
+                    # own map from ray/depth sensing; no model, no privileged
+                    # info. Self-resets when a new episode starts (env.steps==0).
+                    if st.get("frontier_policy") is None:
+                        from wanderai.frontier_policy import FrontierPolicy
+                        st["frontier_policy"] = FrontierPolicy()
+                    policy = st["frontier_policy"]
                 elif name == "trained":
                     # Model choice from the UI dropdown. An explicit pick wins; "auto"
                     # (or none) is scene-aware: 3D (MuJoCo renderer) -> 3D model, else 2D.

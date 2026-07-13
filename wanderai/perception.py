@@ -96,9 +96,12 @@ def _clearance_from_depth(depth: np.ndarray, lo_col: int, hi_col: int,
     return float(min(max_depth, np.percentile(band, 5)))
 
 
-def perceive(renderer, scene, pose, history=None, visited=None) -> Observation:
-    """Render the agent's view and decode it into an `Observation`."""
-    rgb, depth = renderer.render_rgb_depth(scene, pose)
+def perceive(renderer, scene, pose, history=None, visited=None,
+             frame=None) -> Observation:
+    """Render the agent's view and decode it into an `Observation`.
+    Pass `frame=(rgb, depth)` to decode an already-rendered frame instead of
+    rendering again (callers that also need the raw depth, e.g. the mapper)."""
+    rgb, depth = frame if frame is not None else renderer.render_rgb_depth(scene, pose)
     h, w = depth.shape
     max_depth = float(getattr(renderer, "max_depth", 10.0))
     fov_x = float(getattr(renderer, "fov_x", math.pi / 2))

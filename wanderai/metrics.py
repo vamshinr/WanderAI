@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import math
 
 
 @dataclass
@@ -8,11 +9,16 @@ class EpisodeResult:
     optimal: float       # optimal geodesic distance start -> ball
     path_length: float   # distance the agent actually walked
     steps: int
+    # Extended fields (default-compatible with older call sites):
+    final_geodesic: float = math.inf   # geodesic distance to goal at episode end
+    collisions: int = 0                # blocked MOVE_FORWARD attempts
+    visited_cells: int = 0             # distinct coarse cells visited (coverage)
 
 
 def spl(results: list[EpisodeResult]) -> float:
     """Success weighted by Path Length: (1/N) sum_i S_i * l_i / max(p_i, l_i).
-    Failed episodes (and degenerate optimal<=0) contribute 0."""
+    Failed episodes (and degenerate optimal<=0) contribute 0.
+    (Anderson et al. 2018, "On Evaluation of Embodied Navigation Agents".)"""
     if not results:
         return 0.0
     total = 0.0
@@ -20,6 +26,29 @@ def spl(results: list[EpisodeResult]) -> float:
         if r.success and r.optimal > 0:
             total += r.optimal / max(r.path_length, r.optimal)
     return total / len(results)
+
+
+def soft_spl(results: list[EpisodeResult]) -> float:
+    """SoftSPL (Datta et al. 2020): replaces the binary success indicator with
+    geodesic *progress* toward the goal, so partial progress is credited:
+      (1/N) sum_i max(0, 1 - d_T/l_i) * l_i / max(p_i, l_i).
+    Episodes with unknown final distance or degenerate optimal contribute 0."""
+    if not results:
+        return 0.0
+    total = 0.0
+    for r in results:
+        if r.optimal > 0 and math.isfinite(r.final_geodesic):
+            progress = max(0.0, 1.0 - r.final_geodesic / r.optimal)
+            total += progress * (r.optimal / max(r.path_length, r.optimal))
+    return total / len(results)
+
+
+def distance_to_success(results: list[EpisodeResult]) -> float:
+    """Mean geodesic distance remaining at episode end (0 for successes).
+    Lower is better; complements SPL for all-fail comparisons."""
+    finite = [0.0 if r.success else r.final_geodesic
+              for r in results if math.isfinite(r.final_geodesic) or r.success]
+    return sum(finite) / len(finite) if finite else math.inf
 
 
 def summarize(results: list[EpisodeResult]) -> dict:
@@ -30,5 +59,9 @@ def summarize(results: list[EpisodeResult]) -> dict:
     return {
         "success_rate": len(succ) / n,
         "spl": spl(results),
+        "soft_spl": soft_spl(results),
+        "dts": distance_to_success(results),
         "mean_steps": sum(r.steps for r in succ) / len(succ) if succ else 0.0,
+        "mean_collisions": sum(r.collisions for r in results) / n,
+        "mean_coverage": sum(r.visited_cells for r in results) / n,
     }

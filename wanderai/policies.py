@@ -47,8 +47,12 @@ class OraclePolicy:
 def run_episode(env: SceneSearchEnv, policy) -> EpisodeResult:
     obs, info = env.reset()
     done = False
+    collisions = 0
     while not done:
         action = policy.act(obs, env)
         obs, reward, done, info = env.step(action)
+        collisions += int(info["collision"])
     return EpisodeResult(success=info["success"], optimal=info["optimal"],
-                         path_length=info["path_length"], steps=info["steps"])
+                         path_length=info["path_length"], steps=info["steps"],
+                         final_geodesic=info["geodesic"], collisions=collisions,
+                         visited_cells=len(env.visited))
