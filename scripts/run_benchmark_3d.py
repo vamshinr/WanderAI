@@ -35,13 +35,24 @@ from wanderai.scene_mjcf import scene_renderer_3d
 
 
 def strip_mae(scene, renderer) -> float:
+    """Sensor fidelity: vision strip vs ray-cast ground truth measured at the
+    SAME bearings against RAW (un-inflated) surfaces. Comparing against the
+    default depth_strip would charge two harness artifacts to perception:
+    its rays sit on a different bearing grid than the vision bins, and
+    cast_ray measures configuration-space ranges (obstacles inflated by
+    agent_radius) while the camera sees the raw surface."""
+    from dataclasses import replace
+    from wanderai.observation import cast_ray
     rgb, depth = renderer.render_rgb_depth(scene, scene.agent_start)
-    geo = depth_strip(scene, scene.agent_start, max_range=6.0)
     vis = obstacle_strip_from_depth(
         depth, fov_x=renderer.fov_x, fov_y=renderer.fov_y,
         eye_height=renderer.eye_height,
         pitch_rad=math.radians(renderer.pitch_deg), max_range=6.0)
-    return float(np.mean([abs(dg - dv) for (_, dg), (_, dv) in zip(geo, vis)]))
+    raw = replace(scene, agent_radius=0.0)
+    pose = scene.agent_start
+    errs = [abs(cast_ray(raw, pose.x, pose.y, pose.heading + rel, 6.0) - rng)
+            for rel, rng in vis]
+    return float(np.mean(errs))
 
 
 def plane_metrics(scene, renderer):
@@ -72,7 +83,12 @@ def plane_metrics(scene, renderer):
             wall_err = math.degrees(math.asin(min(1.0, abs(float(p.normal[2])))))
     nav = navigable_points(planes, pts)
     if len(nav):
-        free = np.array([scene.is_free(float(x), float(y)) for x, y in nav])
+        # Validate against RAW footprints: scene.is_free is a configuration-
+        # space test (inflated by agent_radius), which would score genuine
+        # floor within 0.2 m of furniture as a false positive.
+        from dataclasses import replace
+        raw = replace(scene, agent_radius=0.0)
+        free = np.array([raw.is_free(float(x), float(y)) for x, y in nav])
         precision = float(free.mean())
     else:
         precision = None

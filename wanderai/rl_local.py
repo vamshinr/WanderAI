@@ -303,9 +303,18 @@ class TrainedLocalPolicy:
 
     BLOCK_CELL = 0.25    # resolution of the collision-inferred blocked-cell set
 
-    def __init__(self, net: PolicyNet | dict, use_hint: bool = False):
+    def __init__(self, net: PolicyNet | dict, use_hint: bool = False,
+                 stochastic: bool = False, seed: int = 0):
         self.net = net if isinstance(net, PolicyNet) else PolicyNet.from_dict(net)
         self.use_hint = use_hint
+        # Stochastic mode samples the softmax instead of argmax. Needed to
+        # evaluate UNTRAINED weights honestly: argmax over the zero-initialized
+        # output layer is a tie always broken to action 0 (a drive-forward
+        # heuristic), not the uniform-random policy training actually starts
+        # from — the trained-vs-untrained delta would be measured against an
+        # enum-ordering artifact.
+        self.stochastic = stochastic
+        self._sample_rng = np.random.default_rng(seed)
         self._reset()
 
     @classmethod
@@ -350,7 +359,12 @@ class TrainedLocalPolicy:
         if not forward_ok:
             z = z.copy()
             z[int(Action.MOVE_FORWARD)] = -1e9
-        a = int(np.argmax(z))
+        if self.stochastic:
+            p = np.exp(z - z.max())
+            p /= p.sum()
+            a = int(self._sample_rng.choice(3, p=p))
+        else:
+            a = int(np.argmax(z))
         if a != int(Action.MOVE_FORWARD):
             self.consecutive_turns += 1
             if (self.consecutive_turns > int(2 * math.pi / ecfg.turn)
@@ -376,13 +390,17 @@ def train_and_eval(n_train: int = 12, n_test: int = 8, split_seed: int = 7,
 
     trainer.train(progress=progress)
 
-    def _eval(weights: dict) -> dict:
-        policy = TrainedLocalPolicy(weights, use_hint=cfg.use_hint)
+    def _eval(weights: dict, stochastic: bool = False) -> dict:
+        policy = TrainedLocalPolicy(weights, use_hint=cfg.use_hint,
+                                    stochastic=stochastic, seed=cfg.seed)
         results = [run_episode(SceneSearchEnv(s, config=EnvConfig(max_steps=300)),
                                policy) for s in test_scenes]
         return summarize(results)
 
     return {"train_history": trainer.history,
-            "eval_untrained": _eval(untrained_weights),
+            # Untrained weights are all-zero logits: sample them (the uniform
+            # policy training starts from) — argmax would be a tie broken to
+            # MOVE_FORWARD, i.e. a drive-forward heuristic, not a baseline.
+            "eval_untrained": _eval(untrained_weights, stochastic=True),
             "eval_trained": _eval(trainer.net.to_dict()),
             "weights": trainer.net.to_dict()}

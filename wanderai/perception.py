@@ -115,7 +115,11 @@ def perceive(renderer, scene, pose, history=None, visited=None,
         col, ys, xs = hit
         ndc = 2.0 * col / w - 1.0                 # -1 (left) .. +1 (right)
         bearing = -math.atan(ndc * half_tan)      # + = left, matches geometry
-        distance = float(np.median(depth[ys, xs]))
+        # The depth buffer stores PERPENDICULAR z — divide by cos(bearing) so
+        # `distance` is range along the sighting ray, the same quantity the
+        # geometric observation reports (an off-axis ball read as raw z lands
+        # a dead-reckoned goal short by up to 1-cos(fov/2) ~ 29%).
+        distance = float(np.median(depth[ys, xs])) / max(math.cos(bearing), 0.5)
 
     # --- wall clearance from depth: left / centre / right thirds ---
     t = w // 3

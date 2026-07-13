@@ -45,10 +45,19 @@ def soft_spl(results: list[EpisodeResult]) -> float:
 
 def distance_to_success(results: list[EpisodeResult]) -> float:
     """Mean geodesic distance remaining at episode end (0 for successes).
-    Lower is better; complements SPL for all-fail comparisons."""
-    finite = [0.0 if r.success else r.final_geodesic
-              for r in results if math.isfinite(r.final_geodesic) or r.success]
-    return sum(finite) / len(finite) if finite else math.inf
+    Lower is better; complements SPL for all-fail comparisons. A failure with
+    no usable final distance counts as its full start distance (no progress)
+    rather than being dropped — silently excluding such episodes would bias
+    the metric toward 0 for exactly the worst outcomes."""
+    vals = []
+    for r in results:
+        if r.success:
+            vals.append(0.0)
+        elif math.isfinite(r.final_geodesic):
+            vals.append(r.final_geodesic)
+        elif math.isfinite(r.optimal):
+            vals.append(r.optimal)
+    return sum(vals) / len(vals) if vals else math.inf
 
 
 def summarize(results: list[EpisodeResult]) -> dict:
