@@ -5,8 +5,12 @@ touches the environment's privileged occupancy grid or geodesic field. Three par
 
 1. **Depth strip** — a 1-D range scan across the agent's field of view. In 2D it is
    simulated by ray-casting (`depth_strip`), exactly the information one row of a
-   depth camera provides; in 3D it is decoded from the MuJoCo depth buffer
-   (`depth_strip_from_image`), so the same mapper runs on real rendered pixels.
+   depth camera provides; in 3D the LIVE vision path is
+   `obstacle_strip_from_depth`, a height-aware projection of the full depth
+   image (so knee-high furniture below the horizon still registers).
+   `depth_strip_from_image` is the simpler single-band decoder, kept for
+   reference/tests — it sees over low obstacles and is NOT what
+   `FrontierPolicy` uses.
 2. **`EgoMap`** — a sparse log-odds occupancy grid (Moravec & Elfes 1985; Thrun 2005
    inverse sensor model): cells along each ray accumulate free evidence, the hit
    cell accumulates occupied evidence. Memory is HARD-BOUNDED: when the number of
@@ -25,7 +29,7 @@ import heapq
 import math
 
 from .observation import (DEFAULT_FOV, DEFAULT_CLEARANCE_RANGE, cast_ray)
-from .geometry import Pose
+from .geometry import Pose, wrap_angle
 from .scene import Scene
 
 DEFAULT_N_RAYS = 15
@@ -35,6 +39,12 @@ L_OCC = 1.8            # evidence the hit cell is occupied (stronger: hits are r
 L_MIN, L_MAX = -4.0, 4.0
 OCC_THRESHOLD = 0.6    # log-odds above which a cell counts as occupied
 FREE_THRESHOLD = -0.3  # log-odds below which a cell counts as known-free
+# Forward-motion gate (used by FrontierPolicy._forward_ok): a cell only vetoes
+# forward motion above this. It MUST sit strictly between one L_OCC hit (a
+# single stray return may not freeze the robot) and two hits / the 4.0
+# collision bump (real walls must veto). Retune if L_OCC changes.
+TRUSTED_OCC = 2.0
+assert L_OCC < TRUSTED_OCC < 2 * L_OCC
 
 
 def depth_strip(scene: Scene, pose: Pose, n_rays: int = DEFAULT_N_RAYS,
@@ -376,8 +386,7 @@ def frontier_hint(egomap: EgoMap, pose: Pose,
         if score > best_score:
             best, best_score = c, score
     dx, dy = best.centroid[0] - pose.x, best.centroid[1] - pose.y
-    rel = math.atan2(dy, dx) - pose.heading
-    rel = math.atan2(math.sin(rel), math.cos(rel))
+    rel = wrap_angle(math.atan2(dy, dx) - pose.heading)
     if abs(rel) <= fov / 6:
         direction = "center"
     elif abs(rel) <= math.pi / 2:

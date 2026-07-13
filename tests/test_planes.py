@@ -129,13 +129,15 @@ def _mujoco_report():
     mujoco = pytest.importorskip("mujoco")
     from wanderai.mujoco_renderer import MuJoCoRenderer
     model = mujoco.MjModel.from_xml_string(MJCF)
-    renderer = MuJoCoRenderer(model, world_offset=(0.0, 0.0), floor_z=0.0)
-    pose = Pose(0.0, 0.0, 0.0)          # facing the box 3 m ahead
-    _, depth = renderer.render_rgb_depth(None, pose)
-    meta = {"fov_x": renderer.fov_x, "fov_y": renderer.fov_y,
-            "eye_height": renderer.eye_height,
-            "pitch_rad": math.radians(renderer.pitch_deg),
-            "floor_z": renderer.floor_z, "max_depth": renderer.max_depth}
+    # Close the GL context when done — a leaked OSMesa context corrupts every
+    # renderer created later in the same pytest process.
+    with MuJoCoRenderer(model, world_offset=(0.0, 0.0), floor_z=0.0) as renderer:
+        pose = Pose(0.0, 0.0, 0.0)          # facing the box 3 m ahead
+        _, depth = renderer.render_rgb_depth(None, pose)
+        meta = {"fov_x": renderer.fov_x, "fov_y": renderer.fov_y,
+                "eye_height": renderer.eye_height,
+                "pitch_rad": math.radians(renderer.pitch_deg),
+                "floor_z": renderer.floor_z, "max_depth": renderer.max_depth}
     return depth, pose, meta
 
 

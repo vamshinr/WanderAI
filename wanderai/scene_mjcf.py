@@ -25,10 +25,13 @@ import hashlib
 import math
 
 from .scene import Scene
+# Single source of truth for the goal object's appearance: perception's
+# red-blob detector is tuned to THIS ball. Forking the values here would let
+# procedural rooms and imported rooms drift apart, confounding vision results.
+from .mujoco_renderer import BALL_RADIUS, BALL_RGBA
 
 WALL_HEIGHT = 2.6
 WALL_THICKNESS = 0.15
-BALL_RADIUS = 0.30
 MIN_OBSTACLE_H = 0.45
 MAX_OBSTACLE_H = 1.9
 
@@ -68,23 +71,18 @@ def scene_to_mjcf(scene: Scene, *, ball_radius: float = BALL_RADIUS,
         geoms.append(f'<geom name="obstacle_{i}" type="box" pos="{px} {py} {oh / 2}" '
                      f'size="{sx} {sy} {oh / 2}" '
                      f'rgba="{shade + 0.08} {shade} {shade - 0.05} 1"/>')
-    bx, by = scene.ball
-    return f"""<mujoco model="wander_room">
+    room = f"""<mujoco model="wander_room">
   <visual><global offwidth="640" offheight="480"/><quality shadowsize="0"/></visual>
-  <asset>
-    <material name="wander_ball_mat" rgba="0.9 0.05 0.05 1" emission="0.8"
-              specular="0.1" shininess="0.1"/>
-  </asset>
   <worldbody>
     <light directional="true" pos="{cx} {cy} 6" dir="0 0 -1" diffuse="0.9 0.9 0.9"/>
     <light directional="true" pos="{b.min_x} {b.min_y} 4" dir="0.4 0.4 -1" diffuse="0.35 0.35 0.35"/>
     {chr(10).join('    ' + g for g in geoms)}
-    <body name="wander_red_ball" pos="{bx} {by} {ball_radius}">
-      <geom name="wander_red_ball_geom" type="sphere" size="{ball_radius}"
-            material="wander_ball_mat" contype="0" conaffinity="0"/>
-    </body>
   </worldbody>
 </mujoco>"""
+    # The ball is injected by the same helper the Gizmo-import path uses, so
+    # its material/name/emission can never fork between the two 3D pipelines.
+    from .mujoco_renderer import inject_red_ball
+    return inject_red_ball(room, scene.ball, ball_radius, radius=ball_radius)
 
 
 def scene_renderer_3d(scene: Scene, *, width: int = 192, height: int = 144,

@@ -1,5 +1,6 @@
 {
  "scene": "wander_lake/scene_3d_train.xml (Gizmo export)",
+ "note": "furniture is position-only in Gizmo exports: the visual world contains real meshes the 2D collision world lacks, so pixels-only mapping perceives (real) clutter that does not block the (proxy) collision world - the documented sim-artifact for transfer",
  "bounds": [
   20.4,
   15.4
@@ -24,52 +25,60 @@
    "success": true,
    "steps": 87,
    "spl_term": 1.0,
-   "collisions": 0
+   "collisions": 0,
+   "coverage": 40
   },
   "random": {
    "success": false,
-   "steps": 500,
+   "steps": 1500,
    "spl_term": 0.0,
-   "collisions": 61
+   "collisions": 125,
+   "coverage": 131
   },
   "fbe_geometry": [
    {
-    "success": false,
-    "steps": 500,
-    "spl_term": 0.0,
-    "collisions": 0
+    "success": true,
+    "steps": 104,
+    "spl_term": 0.9027889112074615,
+    "collisions": 0,
+    "coverage": 45
    },
    {
-    "success": false,
-    "steps": 500,
-    "spl_term": 0.0,
-    "collisions": 0
+    "success": true,
+    "steps": 104,
+    "spl_term": 0.9027889112074615,
+    "collisions": 0,
+    "coverage": 45
    },
    {
-    "success": false,
-    "steps": 500,
-    "spl_term": 0.0,
-    "collisions": 0
+    "success": true,
+    "steps": 104,
+    "spl_term": 0.9027889112074615,
+    "collisions": 0,
+    "coverage": 45
    }
   ],
   "fbe_vision": [
    {
     "success": false,
-    "steps": 500,
+    "steps": 1500,
     "spl_term": 0.0,
-    "collisions": 4
+    "collisions": 5,
+    "coverage": 4
    },
    {
     "success": false,
-    "steps": 500,
+    "steps": 1500,
     "spl_term": 0.0,
-    "collisions": 4
+    "collisions": 4,
+    "coverage": 5
    },
    {
     "success": false,
-    "steps": 500,
+    "steps": 1500,
     "spl_term": 0.0,
-    "collisions": 3
+    "collisions": 3,
+    "coverage": 4
    }
   ]
  }

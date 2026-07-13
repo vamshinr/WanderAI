@@ -51,8 +51,11 @@ def run_episode(env: SceneSearchEnv, policy) -> EpisodeResult:
     while not done:
         action = policy.act(obs, env)
         obs, reward, done, info = env.step(action)
-        collisions += int(info["collision"])
+        collisions += int(info.get("collision", False))
+    # The extended fields degrade gracefully for wrapper envs that only emit
+    # the four core info keys.
     return EpisodeResult(success=info["success"], optimal=info["optimal"],
                          path_length=info["path_length"], steps=info["steps"],
-                         final_geodesic=info["geodesic"], collisions=collisions,
-                         visited_cells=len(env.visited))
+                         final_geodesic=info.get("geodesic", math.inf),
+                         collisions=collisions,
+                         visited_cells=len(getattr(env, "visited", ()) or ()))

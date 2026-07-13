@@ -27,9 +27,9 @@ import math
 import numpy as np
 
 from .environment import Action, SceneSearchEnv
-from .geometry import Pose
+from .geometry import Pose, wrap_angle
 from .mapping import (EgoMap, depth_strip, obstacle_strip_from_depth,
-                      DEFAULT_N_RAYS)
+                      DEFAULT_N_RAYS, TRUSTED_OCC)
 from .observation import observe, DEFAULT_FOV, DEFAULT_CLEARANCE_RANGE
 
 
@@ -50,6 +50,8 @@ class FrontierPolicy:
 
     def __init__(self, config: FrontierConfig | None = None):
         self.cfg = config or FrontierConfig()
+        self._env_ref = None      # id of the env this episode state belongs to
+        self._last_steps = -1
         self._reset()
 
     def _reset(self):
@@ -94,10 +96,20 @@ class FrontierPolicy:
     # --- helpers ---
     @staticmethod
     def _wrap(a: float) -> float:
-        return math.atan2(math.sin(a), math.cos(a))
+        return wrap_angle(a)      # one wrapping convention, shared with the env
 
     def _turn_toward(self, rel_bearing: float) -> Action:
         return Action.TURN_LEFT if rel_bearing > 0 else Action.TURN_RIGHT
+
+    def _pick_skirt_side(self, strip) -> Action:
+        """Commit to the side with more open space (shared by homing and
+        search skirting so the two modes can never silently diverge)."""
+        left = max(r for rel, r in strip if rel > 0)
+        right = max(r for rel, r in strip if rel < 0)
+        if abs(left - right) < 1e-6:
+            return (Action.TURN_LEFT if self.rng.random() < 0.5
+                    else Action.TURN_RIGHT)
+        return Action.TURN_LEFT if left > right else Action.TURN_RIGHT
 
     def _center_clear(self, strip) -> float:
         mid = min(range(len(strip)), key=lambda i: abs(strip[i][0]))
@@ -119,11 +131,12 @@ class FrontierPolicy:
             return False
         nx = pose.x + ecfg.step_size * math.cos(pose.heading)
         ny = pose.y + ecfg.step_size * math.sin(pose.heading)
-        # Gate only on STRONG occupancy evidence: a single stray sensor hit
-        # (one L_OCC) must not freeze the robot — if the cell really is a wall
-        # the collision ban catches it on the next step and marks it hard.
+        # Gate only on STRONG occupancy evidence (TRUSTED_OCC, defined next to
+        # the log-odds increments it must sit between): a single stray sensor
+        # hit must not freeze the robot — if the cell really is a wall the
+        # collision ban catches it on the next step and marks it hard.
         lo = self.map.log_odds(self.map.key(nx, ny))
-        return lo is None or lo <= 2.0
+        return lo is None or lo <= TRUSTED_OCC
 
     def _ranked_frontiers(self, pose: Pose):
         clusters = self.map.frontiers()
@@ -148,8 +161,14 @@ class FrontierPolicy:
 
     # --- policy interface ---
     def act(self, obs, env: SceneSearchEnv) -> Action:
-        if env.steps == 0:
+        # New episode detection: first step, a different env object, or the
+        # step counter moving backwards (a long-lived cached policy — e.g. the
+        # UI server's — must not carry one room's map into another).
+        if (env.steps == 0 or env is not self._env_ref
+                or env.steps < self._last_steps):
             self._reset()
+        self._env_ref = env
+        self._last_steps = env.steps
         pose = env.pose
         cfg, ecfg = self.cfg, env.config
 
@@ -216,10 +235,7 @@ class FrontierPolicy:
             # Obstacle between us and the ball: commit to one side and keep
             # turning that way until forward opens up (wall-follow, not dither).
             if self.skirt_side is None:
-                left = max(r for rel, r in strip if rel > 0)
-                right = max(r for rel, r in strip if rel < 0)
-                self.skirt_side = (Action.TURN_LEFT if left >= right
-                                   else Action.TURN_RIGHT)
+                self.skirt_side = self._pick_skirt_side(strip)
             return self.skirt_side
         self.skirt_side = None
 
@@ -255,12 +271,5 @@ class FrontierPolicy:
             self.explore_skirt = None
             return Action.MOVE_FORWARD
         if self.explore_skirt is None:
-            left = max(r for rel, r in strip if rel > 0)
-            right = max(r for rel, r in strip if rel < 0)
-            if abs(left - right) < 1e-6:
-                self.explore_skirt = (Action.TURN_LEFT if self.rng.random() < 0.5
-                                      else Action.TURN_RIGHT)
-            else:
-                self.explore_skirt = (Action.TURN_LEFT if left > right
-                                      else Action.TURN_RIGHT)
+            self.explore_skirt = self._pick_skirt_side(strip)
         return self.explore_skirt

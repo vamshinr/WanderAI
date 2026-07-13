@@ -60,7 +60,9 @@ def aggregate(name: str, results: list[EpisodeResult]) -> dict:
         "episodes": len(results),
         "success_rate": float(np.mean(sr)),
         "success_ci": bootstrap_ci(sr),
-        "spl": spl(results),
+        # Point estimate from the SAME per-episode terms the CI resamples, so
+        # the published number can never sit outside its own interval.
+        "spl": float(np.mean(terms)) if terms else 0.0,
         "spl_ci": bootstrap_ci(terms),
         "soft_spl": float(soft_spl(results)),
         "dts": float(distance_to_success(results)),
@@ -102,10 +104,22 @@ def git_revision() -> str:
         return "unknown"
 
 
+def _json_safe(value):
+    """NaN/inf are invalid JSON (RFC 8259) — map them to None so strict
+    consumers (browsers, jq) can parse the report."""
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
 def save_report(path_json: str, rows: list[dict], meta: dict):
     payload = {"meta": {**meta, "git": git_revision(),
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC",
                                                    time.gmtime())},
                "results": rows}
     with open(path_json, "w") as fh:
-        json.dump(payload, fh, indent=1)
+        json.dump(_json_safe(payload), fh, indent=1, allow_nan=False)

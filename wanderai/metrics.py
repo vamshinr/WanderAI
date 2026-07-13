@@ -54,7 +54,9 @@ def distance_to_success(results: list[EpisodeResult]) -> float:
 def summarize(results: list[EpisodeResult]) -> dict:
     n = len(results)
     if n == 0:
-        return {"success_rate": 0.0, "spl": 0.0, "mean_steps": 0.0}
+        return {"success_rate": 0.0, "spl": 0.0, "soft_spl": 0.0,
+                "dts": math.inf, "mean_steps": 0.0, "mean_collisions": 0.0,
+                "mean_coverage": 0.0}
     succ = [r for r in results if r.success]
     return {
         "success_rate": len(succ) / n,

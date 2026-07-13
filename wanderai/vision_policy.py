@@ -198,8 +198,10 @@ class VisionFrontierPolicy(FrontierPolicy):
     `EnvConfig(perception="vision")` and a renderer exposing `render_rgb_depth`,
     FrontierPolicy already senses exclusively through pixels: the ball via
     `perceive()`'s red-blob detector on RGB, and the map via
-    `depth_strip_from_image` on the rendered depth buffer. The alias exists so
-    "frontier exploration from pixels" has a name distinct from the VLM route."""
+    `mapping.obstacle_strip_from_depth` — a height-aware projection of the full
+    depth image, so furniture below the horizon still registers. The alias
+    exists so "frontier exploration from pixels" has a name distinct from the
+    VLM route."""
 
 
 def make_pixels_only_policy(config: FrontierConfig | None = None) -> FrontierPolicy:
