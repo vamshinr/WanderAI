@@ -376,9 +376,72 @@ training actually starts from) after review found the argmax-of-zero-logits
 
 ## 9. Related work and positioning
 
-<!-- RELATED:BEGIN -->
-<!-- summary of docs/research/literature_review.md once the verified review lands -->
-<!-- RELATED:END -->
+The full review — twelve literature strands, ~75 papers in an annotated
+bibliography, every headline number checked against its source by an
+independent verification pass (corrections applied, unverifiable figures
+flagged) — is **`docs/research/literature_review.md`**. The condensed
+positioning:
+
+**What WanderAI is.** Not a competitor on HM3D/MP3D leaderboards, but a
+minimal, fully instrumented instantiation of the standard ObjectNav protocol
+that isolates a question the field leaves entangled: *can a small language
+model, reinforcement-fine-tuned on episodic return, learn the
+exploration/exploitation policy itself from symbolic egocentric text* —
+rather than delegating spatial reasoning to frontier planners (VLFM, ESC,
+L3MVN keep the LLM/VLM frozen as a frontier-scoring oracle), learning it from
+~77k human demonstrations (Habitat-Web / PIRLNav), or brute-forcing it with
+billions of frames of experience (DD-PPO)?
+
+**What is deliberately not novel.** The reward is the Habitat/DD-PPO-standard
+geodesic distance-to-goal shaping plus slack and collision penalties,
+licensed by the Ng–Harada–Russell policy-invariance theorem — the review is
+explicit that claiming reward novelty would sink a paper. The action space
+matches the Batra et al. (2020) standard. Frontier exploration, log-odds
+occupancy mapping, and RANSAC plane extraction are textbook components,
+implemented here as instrumented baselines and substrates, and cited as such.
+
+**Candidate contributions the evidence can support** (full statements with
+required-evidence lists in the review, §4):
+
+1. **C1** — demonstration-free RFT of a small *text-only* LLM into a
+   closed-loop low-level search policy, evaluated by SPL on held-out
+   procedural scenes. Nearest neighbors to differentiate: VLN-R1 (GRPO RFT
+   of a 2B VLM for low-level VLN actions — but instruction-following on
+   video with an imitation-flavored, expert-trajectory reward) and GLAM
+   (RL-grounded small LM over symbolic text — but gridworld, per-step PPO,
+   sparse reward).
+2. **C2** — geodesic potential-based shaping as a *sufficient,
+   demonstration-free* training signal in the whole-episode-return GRPO
+   regime (dense shaping partially substituting for the turn-level critic
+   ArCHer argues is necessary).
+3. **C3** — observation-side exploration memory (visited-cells rendered into
+   the observation; this session adds the map-derived frontier hint) versus
+   reward-side count bonuses (Ye et al.) as an explicit design axis.
+4. **C4** — a confound-free, layout-only scene-count scaling curve
+   (ProcTHOR predicts monotonic gains; HSSD-200 predicts early saturation;
+   both entangle layout with appearance, which the symbolic interface
+   removes by construction).
+5. **C5** — quantifying what reward-tuning adds over prompting and over
+   frontier geometry in the small-LLM regime. This session's benchmarks
+   supply the geometry side of that comparison: FBE at SR 0.86 / SPL 0.61 is
+   the number a tuned LLM must meet.
+
+**Sharpest threats to novelty** (review §5): VLN-R1 (Qi et al., 2025) for C1;
+the DD-PPO reward lineage plus ArCHer for C2; and Aghaei et al. (2025, "When
+Engineering Outruns Intelligence") for C5 — if the tuned LLM cannot beat
+nearest-frontier geometry, that paper predicts exactly this outcome, and the
+finding should be pre-registered as an acceptable negative result.
+
+**Protocol borrowings the review mandates, and their status here:** SoftSPL
+(implemented this session, reported in every table), a Yamauchi-class FBE
+baseline (implemented, benchmarked), bootstrap CIs over frozen seeded episode
+sets (implemented; IQM and stratified bootstrap per rliable are a small
+upgrade), a Stubborn-style deterministic sweep baseline (future work), a
+STOP action (future work — the current proximity-based success is an
+oracle-stop relaxation and must be flagged as such wherever results are
+compared to Habitat numbers), ~1000-episode frozen eval sets and 3+ training
+seeds (future work; current tables use 50 rooms × 1 episode and a single
+training seed, stated as a limitation).
 
 ## 10. Limitations
 
